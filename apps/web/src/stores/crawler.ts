@@ -125,33 +125,41 @@ export const useCrawlerStore = defineStore('crawler', () => {
 
     ws.onopen = () => {
       wsConnected.value = true;
-      if (isDev) {
-        console.log('[WebSocket] 已连接');
-      }
+      console.log('[WebSocket] ✅ 已连接到', wsUrl);
     };
 
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        if (isDev) {
-          console.log('[WebSocket] 消息接收:', message.type);
-        }
+        console.log('[WebSocket] 📨 消息接收:', message.type, message.data?.id, message.data?.status);
+
         handleWebSocketMessage(message);
+
+        // 验证消息是否被正确处理
+        if (message.type === 'crawler:task:updated') {
+          const taskInStore = tasks.value.find(t => t.id === message.data.id);
+          console.log('[WebSocket] ✅ 处理后验证:', {
+            taskId: message.data.id,
+            foundInStore: !!taskInStore,
+            storeStatus: taskInStore?.status,
+            storeHasPreview: !!taskInStore?.previewMarkdown,
+            receivedStatus: message.data.status,
+            receivedHasPreview: !!message.data.previewMarkdown,
+          });
+        }
       } catch (error) {
-        console.error('[WebSocket] 解析消息失败:', error);
+        console.error('[WebSocket] ❌ 解析消息失败:', error);
       }
     };
 
     ws.onclose = () => {
       wsConnected.value = false;
-      if (isDev) {
-        console.log('[WebSocket] 已断开，3秒后重连...');
-      }
+      console.log('[WebSocket] 🔌 已断开，3秒后重连...');
       setTimeout(connectWebSocket, 3000);
     };
 
     ws.onerror = (error) => {
-      console.error('[WebSocket] 错误:', error);
+      console.error('[WebSocket] ❌ 错误:', error);
     };
   }
 

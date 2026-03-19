@@ -71,15 +71,16 @@ wss.on('connection', (ws) => {
 export function broadcast(type: string, data: any) {
   const message = JSON.stringify({ type, data });
 
-  // 调试日志：记录广播的消息
+  // 记录广播的消息（使用 info 级别确保输出）
   if (type === 'crawler:task:updated') {
-    logger.debug('广播任务更新', {
+    logger.info('WebSocket 广播任务更新', {
       taskId: data.id,
       status: data.status,
       hasPreviewMarkdown: !!data.previewMarkdown,
       previewMarkdownLength: data.previewMarkdown?.length || 0,
       progress: data.progress,
       lastUpdatedAt: data.lastUpdatedAt,
+      clientCount: wsClients.size,
     });
   }
 
