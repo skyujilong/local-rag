@@ -118,31 +118,40 @@ export const useCrawlerStore = defineStore('crawler', () => {
    * 连接 WebSocket
    */
   function connectWebSocket() {
-    const ws = new WebSocket('ws://localhost:3001/ws');
+    const isDev = import.meta.env.DEV;
+    // 根据环境动态选择 WebSocket URL
+    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:3001/ws';
+    const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       wsConnected.value = true;
-      console.log('WebSocket 已连接');
+      if (isDev) {
+        console.log('[WebSocket] 已连接');
+      }
     };
 
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
-        console.log('WebSocket 消息接收:', message.type, message.data);
+        if (isDev) {
+          console.log('[WebSocket] 消息接收:', message.type);
+        }
         handleWebSocketMessage(message);
       } catch (error) {
-        console.error('解析 WebSocket 消息失败:', error);
+        console.error('[WebSocket] 解析消息失败:', error);
       }
     };
 
     ws.onclose = () => {
       wsConnected.value = false;
-      console.log('WebSocket 已断开，3秒后重连...');
+      if (isDev) {
+        console.log('[WebSocket] 已断开，3秒后重连...');
+      }
       setTimeout(connectWebSocket, 3000);
     };
 
     ws.onerror = (error) => {
-      console.error('WebSocket 错误:', error);
+      console.error('[WebSocket] 错误:', error);
     };
   }
 
@@ -150,11 +159,26 @@ export const useCrawlerStore = defineStore('crawler', () => {
    * 处理 WebSocket 消息
    */
   function handleWebSocketMessage(message: { type: string; data: any }) {
-    console.log('处理 WebSocket 消息:', message.type, message.data);
+    const isDev = import.meta.env.DEV;
+    if (isDev) {
+      console.log('[WebSocket] 处理消息:', message.type);
+    }
 
     switch (message.type) {
       case 'crawler:task:created':
       case 'crawler:task:updated': {
+        const taskData = message.data;
+        if (isDev) {
+          console.log('[WebSocket] 任务数据详情:', {
+            id: taskData.id,
+            status: taskData.status,
+            hasPreviewMarkdown: !!taskData.previewMarkdown,
+            previewMarkdownLength: taskData.previewMarkdown?.length || 0,
+            progress: taskData.progress,
+            lastUpdatedAt: taskData.lastUpdatedAt,
+          });
+        }
+
         const index = tasks.value.findIndex(t => t.id === message.data.id);
 
         if (index !== -1) {
@@ -164,24 +188,25 @@ export const useCrawlerStore = defineStore('crawler', () => {
             ...message.data,
             // 确保 previewMarkdown 被正确更新
             previewMarkdown: message.data.previewMarkdown,
-            // 确保 progress 对象被正确合并
-            progress: {
-              ...tasks.value[index].progress,
-              ...message.data.progress,
-            },
+            // 确保 progress 对象被正确合并（使用 ?? 只在 undefined 时回退）
+            progress: message.data.progress ?? tasks.value[index].progress,
           };
 
           // 使用 splice 触发响应式更新
           tasks.value.splice(index, 1, updatedTask);
 
-          console.log('任务已更新:', updatedTask.id, updatedTask.status, {
-            previewMarkdownLength: updatedTask.previewMarkdown?.length,
-            progress: updatedTask.progress,
-          });
+          if (isDev) {
+            console.log('[WebSocket] 任务已更新:', updatedTask.id, updatedTask.status, {
+              previewMarkdownLength: updatedTask.previewMarkdown?.length,
+              progress: updatedTask.progress,
+            });
+          }
         } else {
           // 新任务，添加到列表开头
           tasks.value.unshift(message.data);
-          console.log('新任务已创建:', message.data.id);
+          if (isDev) {
+            console.log('[WebSocket] 新任务已创建:', message.data.id);
+          }
         }
         break;
       }

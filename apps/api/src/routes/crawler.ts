@@ -18,6 +18,39 @@ const router = express.Router();
 // 存储活跃的任务
 const activeTasks = new Map<string, CrawlerTask>();
 
+// 爬虫配置常量
+const CRAWLER_CONFIG = {
+  MAX_QUEUE_SIZE: 10,
+  DEFAULT_TOTAL_STEPS_NO_AUTH: 4,
+  DEFAULT_TOTAL_STEPS_WITH_AUTH: 7,
+  MAX_XPATH_LENGTH: 1000,
+  MAX_PREVIEW_LENGTH: 100_000, // 100KB
+  DANGEROUS_XPATH_PATTERNS: ['document(', 'system-property(', 'import '] as const,
+};
+
+/**
+ * XPath 验证和清理
+ */
+function validateXPath(xpath: string): void {
+  if (!xpath || typeof xpath !== 'string' || xpath.trim().length === 0) {
+    throw createError(400, 'INVALID_INPUT', '请提供有效的 XPath 表达式');
+  }
+
+  const trimmed = xpath.trim();
+
+  // 检查长度
+  if (trimmed.length > CRAWLER_CONFIG.MAX_XPATH_LENGTH) {
+    throw createError(400, 'INVALID_INPUT', `XPath 表达式过长（最大 ${CRAWLER_CONFIG.MAX_XPATH_LENGTH} 字符）`);
+  }
+
+  // 检查危险模式
+  for (const pattern of CRAWLER_CONFIG.DANGEROUS_XPATH_PATTERNS) {
+    if (trimmed.includes(pattern)) {
+      throw createError(400, 'INVALID_INPUT', '包含不安全的 XPath 表达式');
+    }
+  }
+}
+
 /**
  * 更新任务进度
  */
@@ -29,7 +62,36 @@ function updateTaskProgress(
     ...task.progress,
     ...progress,
   } as CrawlerTaskProgress;
-  task.lastUpdatedAt = new Date();
+  // 使用 ISO 字符串确保序列化一致性
+  task.lastUpdatedAt = new Date().toISOString() as any;
+}
+
+/**
+ * 安全地广播任务更新（确保数据被正确序列化）
+ */
+function broadcastTaskUpdate(task: CrawlerTask): void {
+  // 创建一个干净的对象副本，确保所有字段都能被正确序列化
+  const taskCopy = {
+    id: task.id,
+    url: task.url,
+    status: task.status,
+    waitForAuth: task.waitForAuth,
+    useXPath: task.useXPath,
+    startedAt: task.startedAt,
+    completedAt: task.completedAt,
+    error: task.error,
+    documentCount: task.documentCount,
+    authStatus: task.authStatus,
+    xpath: task.xpath,
+    // 截断过长的预览内容
+    previewMarkdown: task.previewMarkdown && task.previewMarkdown.length > CRAWLER_CONFIG.MAX_PREVIEW_LENGTH
+      ? task.previewMarkdown.substring(0, CRAWLER_CONFIG.MAX_PREVIEW_LENGTH) + '\n\n[内容过长，已截断]'
+      : task.previewMarkdown,
+    progress: task.progress,
+    lastUpdatedAt: task.lastUpdatedAt,
+  };
+
+  broadcast('crawler:task:updated', taskCopy);
 }
 
 /**
@@ -83,8 +145,7 @@ router.post('/start', async (req, res, next) => {
 
     // 检查队列是否已满
     const queueStatus = ResourceManager.getInstance().getQueueStatus();
-    const maxQueueSize = 10;
-    if (queueStatus.queueSize >= maxQueueSize) {
+    if (queueStatus.queueSize >= CRAWLER_CONFIG.MAX_QUEUE_SIZE) {
       throw createError(429, 'QUEUE_FULL', '任务队列已满，请稍后再试');
     }
 
@@ -92,7 +153,7 @@ router.post('/start', async (req, res, next) => {
     const taskId = `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     // 计算总步骤数
-    const totalSteps = waitForAuth ? 7 : 4;
+    const totalSteps = waitForAuth ? CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_WITH_AUTH : CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_NO_AUTH;
 
     // 创建任务
     const task: CrawlerTask = {
@@ -108,7 +169,7 @@ router.post('/start', async (req, res, next) => {
         totalSteps,
         progressPercentage: 0,
       },
-      lastUpdatedAt: new Date(),
+      lastUpdatedAt: new Date().toISOString() as any,
     };
 
     activeTasks.set(taskId, task);
@@ -157,7 +218,7 @@ router.post('/tasks/:id/cancel', async (req, res, next) => {
     task.error = '用户取消';
     task.completedAt = new Date();
 
-    broadcast('crawler:task:updated', task);
+    broadcastTaskUpdate(task);
 
     res.json({
       success: true,
@@ -230,9 +291,9 @@ async function runCrawlerTask(taskId: string) {
   // 2. 不登录，XPath: 4 步 (启动 → 浏览器 → 导航 → 等待 XPath)
   // 3. 登录，不 XPath: 7 步 (启动 → 浏览器 → 导航 → 登录检测 → 等待登录 → 登录成功 → 完成)
   // 4. 登录，XPath: 7 步 (启动 → 浏览器 → 导航 → 登录检测 → 等待登录 → 登录成功 → 等待 XPath)
-  let totalSteps = 4; // 默认：不登录
+  let totalSteps = CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_NO_AUTH;
   if (task.waitForAuth) {
-    totalSteps = 7; // 需要登录
+    totalSteps = CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_WITH_AUTH;
   }
 
   try {
@@ -245,7 +306,7 @@ async function runCrawlerTask(taskId: string) {
       stepDetails: '正在初始化...',
     });
     task.status = 'running';
-    broadcast('crawler:task:updated', task);
+    broadcastTaskUpdate(task);
 
     // 步骤 2: 启动浏览器
     updateTaskProgress(task, {
@@ -255,7 +316,7 @@ async function runCrawlerTask(taskId: string) {
       progressPercentage: Math.round((2 / totalSteps) * 100),
       stepDetails: '正在初始化浏览器实例...',
     });
-    broadcast('crawler:task:updated', task);
+    broadcastTaskUpdate(task);
 
     // 步骤 3: 导航到目标页面
     updateTaskProgress(task, {
@@ -265,7 +326,7 @@ async function runCrawlerTask(taskId: string) {
       progressPercentage: Math.round((3 / totalSteps) * 100),
       stepDetails: `正在加载: ${task.url}`,
     });
-    broadcast('crawler:task:updated', task);
+    broadcastTaskUpdate(task);
 
     const result = await crawl(task.url, {
       waitForAuth: task.waitForAuth,
@@ -300,17 +361,17 @@ async function runCrawlerTask(taskId: string) {
           });
         }
 
-        broadcast('crawler:task:updated', task);
+        broadcastTaskUpdate(task);
       },
       onProgress: (documentCount) => {
         task.documentCount = documentCount;
         task.lastUpdatedAt = new Date();
-        broadcast('crawler:task:updated', task);
+        broadcastTaskUpdate(task);
       },
       onLoginSuccess: (page) => {
         // 只在启用 XPath 模式时保存页面引用
         if (task.useXPath) {
-          const xpathStepNumber = task.waitForAuth ? 7 : 4;
+          const xpathStepNumber = task.waitForAuth ? CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_WITH_AUTH : CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_NO_AUTH;
           updateTaskProgress(task, {
             currentStep: '等待输入 XPath',
             currentStepNumber: xpathStepNumber,
@@ -320,7 +381,7 @@ async function runCrawlerTask(taskId: string) {
           });
           activePages.set(taskId, page);
           task.status = 'waiting_xpath';
-          broadcast('crawler:task:updated', task);
+          broadcastTaskUpdate(task);
         }
       },
     });
@@ -332,7 +393,7 @@ async function runCrawlerTask(taskId: string) {
 
     // 如果返回了 Markdown，进入确认流程
     if (result.markdown && result.title) {
-      const confirmStepNumber = task.waitForAuth ? 7 : 4;
+      const confirmStepNumber = task.waitForAuth ? CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_WITH_AUTH : CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_NO_AUTH;
       updateTaskProgress(task, {
         currentStep: '等待用户确认',
         currentStepNumber: confirmStepNumber,
@@ -343,7 +404,7 @@ async function runCrawlerTask(taskId: string) {
       task.previewMarkdown = result.markdown;
       task.status = 'waiting_confirm';
       task.lastUpdatedAt = new Date();
-      broadcast('crawler:task:updated', task);
+      broadcastTaskUpdate(task);
       logger.info(`任务 ${taskId} 等待用户确认`, { markdownLength: result.markdown.length });
       return;
     }
@@ -360,7 +421,7 @@ async function runCrawlerTask(taskId: string) {
     task.completedAt = new Date();
     task.lastUpdatedAt = new Date();
 
-    broadcast('crawler:task:updated', task);
+    broadcastTaskUpdate(task);
   } catch (error) {
     updateTaskProgress(task, {
       currentStep: '任务失败',
@@ -374,7 +435,7 @@ async function runCrawlerTask(taskId: string) {
     task.completedAt = new Date();
     task.lastUpdatedAt = new Date();
 
-    broadcast('crawler:task:updated', task);
+    broadcastTaskUpdate(task);
   }
 }
 
@@ -385,6 +446,9 @@ async function runCrawlerTask(taskId: string) {
 router.post('/xpath', async (req, res, next) => {
   try {
     const { taskId, xpath } = req.body;
+
+    // 验证 XPath 输入
+    validateXPath(xpath);
 
     const task = activeTasks.get(taskId);
     if (!task || task.status !== 'waiting_xpath') {
@@ -400,12 +464,24 @@ router.post('/xpath', async (req, res, next) => {
     const { html, title } = await extractContentByXPath(page, xpath);
     const markdown = generateMarkdown(html, title, task.url);
 
-    // 更新任务状态
+    // 更新任务状态和进度
+    const totalSteps = task.waitForAuth ? CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_WITH_AUTH : CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_NO_AUTH;
+    updateTaskProgress(task, {
+      currentStep: '等待用户确认',
+      currentStepNumber: totalSteps,
+      totalSteps,
+      progressPercentage: 100,
+      stepDetails: '请查看并确认爬取的内容',
+    });
     task.status = 'waiting_confirm';
     task.xpath = xpath;
     task.previewMarkdown = markdown;
 
-    broadcast('crawler:task:updated', task);
+    logger.info(`任务 ${taskId} XPath 提取完成，等待用户确认`, {
+      markdownLength: markdown.length,
+      progress: task.progress,
+    });
+    broadcastTaskUpdate(task);
 
     res.json({
       success: true,
@@ -439,7 +515,7 @@ router.post('/confirm', async (req, res, next) => {
         task.status = 'waiting_xpath';
         task.xpath = undefined;
         task.previewMarkdown = undefined;
-        broadcast('crawler:task:updated', task);
+        broadcastTaskUpdate(task);
         res.json({
           success: true,
           data: task,
@@ -451,7 +527,7 @@ router.post('/confirm', async (req, res, next) => {
         task.error = '用户取消确认';
         task.completedAt = new Date();
         task.lastUpdatedAt = new Date();
-        broadcast('crawler:task:updated', task);
+        broadcastTaskUpdate(task);
         res.json({
           success: true,
           data: task,
@@ -479,7 +555,7 @@ router.post('/confirm', async (req, res, next) => {
     task.completedAt = new Date();
     task.lastUpdatedAt = new Date();
 
-    broadcast('crawler:task:updated', task);
+    broadcastTaskUpdate(task);
 
     res.json({
       success: true,

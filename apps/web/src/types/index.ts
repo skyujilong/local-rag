@@ -50,8 +50,18 @@ export interface CrawlerTask {
   previewMarkdown?: string;
   startedAt?: string;
   completedAt?: string;
+  lastUpdatedAt?: string;
   error?: string;
   documentCount?: number;
+  progress?: CrawlerTaskProgress;
+}
+
+export interface CrawlerTaskProgress {
+  currentStep: string;
+  currentStepNumber: number;
+  totalSteps: number;
+  progressPercentage: number;
+  stepDetails?: string;
 }
 
 export interface CrawlerSession {

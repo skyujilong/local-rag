@@ -70,10 +70,39 @@ wss.on('connection', (ws) => {
  */
 export function broadcast(type: string, data: any) {
   const message = JSON.stringify({ type, data });
+
+  // 调试日志：记录广播的消息
+  if (type === 'crawler:task:updated') {
+    logger.debug('广播任务更新', {
+      taskId: data.id,
+      status: data.status,
+      hasPreviewMarkdown: !!data.previewMarkdown,
+      previewMarkdownLength: data.previewMarkdown?.length || 0,
+      progress: data.progress,
+      lastUpdatedAt: data.lastUpdatedAt,
+    });
+  }
+
+  // 向所有连接的客户端发送消息，带错误处理
+  const failedClients: Set<WebSocket> = new Set();
   for (const client of wsClients) {
     if (client.readyState === 1) { // OPEN
-      client.send(message);
+      try {
+        client.send(message);
+      } catch (error) {
+        logger.error('WebSocket 发送消息失败', error as Error);
+        failedClients.add(client);
+      }
     }
+  }
+
+  // 清理失败的客户端
+  for (const client of failedClients) {
+    wsClients.delete(client);
+  }
+
+  if (failedClients.size > 0) {
+    logger.info('已清理失效的 WebSocket 连接', { count: failedClients.size });
   }
 }
 

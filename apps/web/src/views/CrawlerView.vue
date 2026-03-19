@@ -234,8 +234,8 @@ const currentTask = computed(() => {
 watch(
   () => currentTask.value?.previewMarkdown,
   (newMarkdown) => {
-    if (newMarkdown) {
-      console.log('预览 Markdown 已更新:', newMarkdown.length, '字符');
+    if (newMarkdown && import.meta.env.DEV) {
+      console.log('[CrawlerView] 预览 Markdown 已更新:', newMarkdown.length, '字符');
     }
   },
   { immediate: true }
@@ -246,7 +246,9 @@ const renderedMarkdown = computed(() => {
     return '';
   }
 
-  console.log('渲染 Markdown:', currentTask.value.previewMarkdown.length, '字符');
+  if (import.meta.env.DEV) {
+    console.log('[CrawlerView] 渲染 Markdown:', currentTask.value.previewMarkdown.length, '字符');
+  }
   return md.render(currentTask.value.previewMarkdown);
 });
 
