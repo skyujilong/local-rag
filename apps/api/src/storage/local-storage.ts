@@ -191,13 +191,13 @@ export async function removeIndexedFile(documentId: string): Promise<void> {
 /**
  * 获取忽略规则
  */
-export async function getIgnoreRules() {
-  return IgnoreRules.getIgnoreConfig();
+export function getIgnoreRules(): string[] {
+  return IgnoreRules.getIgnorePatterns();
 }
 
 /**
  * 更新忽略规则
  */
-export async function updateIgnoreRules(rules: { custom?: string[] }) {
+export function updateIgnoreRules(rules: { custom?: string[] }): string[] {
   return IgnoreRules.updateIgnoreConfig(rules);
 }

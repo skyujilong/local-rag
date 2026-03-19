@@ -3,11 +3,14 @@
  */
 
 import path from 'path';
-import { getIgnoreConfig, getAllIgnorePatterns } from '@local-rag/config/ignore';
+import { getAllIgnorePatterns } from '@local-rag/config/ignore';
 import { matchesIgnorePattern } from '@local-rag/shared/utils';
 
 /**
  * 检查路径是否应该被忽略
+ * @param filePath - 文件绝对路径
+ * @param customPatterns - 可选的自定义忽略模式
+ * @returns 是否应该忽略该路径
  */
 export function shouldIgnore(filePath: string, customPatterns?: string[]): boolean {
   const relativePath = path.relative(process.cwd(), filePath);
@@ -19,22 +22,30 @@ export function shouldIgnore(filePath: string, customPatterns?: string[]): boole
 }
 
 /**
- * 获取忽略配置
+ * 获取所有忽略模式（默认 + 敏感 + 自定义）
+ * @returns 忽略模式数组
  */
-export async function getIgnoreConfig() {
-  return getIgnoreConfig();
+export function getIgnorePatterns(): string[] {
+  return getAllIgnorePatterns();
 }
 
 /**
  * 更新忽略配置
+ * @param rules - 包含自定义模式数组
+ * @returns 更新后的所有忽略模式
  */
-export async function updateIgnoreConfig(rules: { custom?: string[] }) {
-  // 将自定义规则保存到环境变量或配置文件
-  if (rules.custom) {
-    process.env.CUSTOM_IGNORE_PATTERNS = rules.custom.join(',');
+export function updateIgnoreConfig(rules: { custom?: string[] }): string[] {
+  // 将自定义规则保存到环境变量
+  if (rules.custom && Array.isArray(rules.custom)) {
+    // 验证并过滤模式
+    const validPatterns = rules.custom
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
+    process.env.CUSTOM_IGNORE_PATTERNS = validPatterns.join(',');
   }
 
-  return getIgnoreConfig();
+  return getIgnorePatterns();
 }
 
 export { getAllIgnorePatterns };

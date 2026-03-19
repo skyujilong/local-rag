@@ -3,10 +3,14 @@
  */
 
 import express from 'express';
-import * as CrawlerService from '../crawler/index.js';
+import { crawl } from '../crawler/crawler-service.js';
+import { deleteSession, listSessions } from '../crawler/session-manager.js';
 import { broadcast } from '../index.js';
 import { createError } from '../middleware/error-handler.js';
+import { createLogger, LogSystem } from '@local-rag/shared';
 import type { CrawlerTask } from '@local-rag/shared/types';
+
+const logger = createLogger(LogSystem.API, 'crawler');
 
 const router = express.Router();
 
@@ -81,7 +85,7 @@ router.post('/start', async (req, res, next) => {
 
     // 异步执行爬取
     runCrawlerTask(taskId).catch((error) => {
-      console.error(`任务 ${taskId} 执行失败:`, error);
+      logger.error(`任务 ${taskId} 执行失败`, error as Error, { taskId });
     });
 
     res.status(201).json({
@@ -131,7 +135,7 @@ router.post('/tasks/:id/cancel', async (req, res, next) => {
  */
 router.delete('/sessions/:domain', async (req, res, next) => {
   try {
-    await CrawlerService.deleteSession(req.params.domain);
+    await deleteSession(req.params.domain);
 
     res.json({
       success: true,
@@ -148,7 +152,7 @@ router.delete('/sessions/:domain', async (req, res, next) => {
  */
 router.get('/sessions', async (req, res, next) => {
   try {
-    const sessions = await CrawlerService.listSessions();
+    const sessions = await listSessions();
 
     res.json({
       success: true,
@@ -170,7 +174,7 @@ async function runCrawlerTask(taskId: string) {
     task.status = 'running';
     broadcast('crawler:task:updated', task);
 
-    const result = await CrawlerService.crawl(task.url, {
+    const result = await crawl(task.url, {
       waitForAuth: task.waitForAuth,
       onAuthStatusChange: (status) => {
         task.authStatus = status;

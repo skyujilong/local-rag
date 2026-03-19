@@ -207,16 +207,4 @@ function parseContent(html: string, url: string): {
   };
 }
 
-/**
- * 删除会话
- */
-export async function deleteSession(domain: string): Promise<void> {
-  await SessionManager.deleteSession(domain);
-}
-
-/**
- * 列出所有会话
- */
-export async function listSessions(): Promise<CrawlerSession[]> {
-  return SessionManager.listSessions();
-}
+// 会话管理功能由 SessionManager 模块提供
