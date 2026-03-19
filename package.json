@@ -4,7 +4,7 @@
   "private": true,
   "description": "本地知识库系统 - 基于 LlamaIndex 的 RAG 应用",
   "scripts": {
-    "dev": "concurrently \"pnpm --filter @local-rag/web dev\" \"pnpm --filter @local-rag/api dev\"",
+    "dev": "concurrently -n \"WEB,API\" -c \"bgBlue.bold,bgGreen.bold\" \"pnpm --filter @local-rag/web dev\" \"pnpm --filter @local-rag/api dev\"",
     "dev:web": "pnpm --filter @local-rag/web dev",
     "dev:api": "pnpm --filter @local-rag/api dev",
     "dev:mcp": "pnpm --filter @local-rag/mcp-server dev",
