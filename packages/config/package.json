@@ -1,0 +1,40 @@
+{
+  "name": "@local-rag/config",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./llama": {
+      "types": "./dist/llama.config.d.ts",
+      "import": "./dist/llama.config.js"
+    },
+    "./crawler": {
+      "types": "./dist/crawler.config.d.ts",
+      "import": "./dist/crawler.config.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.config.d.ts",
+      "import": "./dist/mcp.config.js"
+    },
+    "./ignore": {
+      "types": "./dist/ignore.config.d.ts",
+      "import": "./dist/ignore.config.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@local-rag/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

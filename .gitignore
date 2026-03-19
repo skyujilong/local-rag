@@ -13,6 +13,7 @@ build/
 .env.*.local
 
 # 日志
+logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*
