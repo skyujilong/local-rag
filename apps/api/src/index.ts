@@ -46,15 +46,21 @@ const wsClients = new Set<any>();
 
 wss.on('connection', (ws) => {
   wsClients.add(ws);
-  logger.info('WebSocket 客户端已连接');
+  logger.info('WebSocket 客户端已连接', {
+    clientCount: wsClients.size,
+  });
 
   ws.on('close', () => {
     wsClients.delete(ws);
-    logger.info('WebSocket 客户端已断开');
+    logger.info('WebSocket 客户端已断开', {
+      clientCount: wsClients.size,
+    });
   });
 
   ws.on('error', (error) => {
-    logger.error('WebSocket 错误', error);
+    logger.error('WebSocket 连接错误', error, {
+      clientCount: wsClients.size,
+    });
     wsClients.delete(ws);
   });
 });
@@ -111,8 +117,16 @@ const PORT = parseInt(process.env.API_PORT || '3001');
 const HOST = process.env.API_HOST || 'localhost';
 
 server.listen(PORT, HOST, () => {
-  logger.info('API 服务器启动', { url: `http://${HOST}:${PORT}` });
-  logger.info('WebSocket 服务器启动', { url: `ws://${HOST}:${PORT}/ws` });
+  logger.info('API 服务器启动', {
+    url: `http://${HOST}:${PORT}`,
+    port: PORT,
+    host: HOST,
+    environment: process.env.NODE_ENV || 'development',
+  });
+  logger.info('WebSocket 服务器启动', {
+    url: `ws://${HOST}:${PORT}/ws`,
+    path: '/ws',
+  });
 
   // 初始化数据目录
   const dataPath = path.join(__dirname, '../data');
@@ -122,14 +136,19 @@ server.listen(PORT, HOST, () => {
     const dirPath = path.join(dataPath, subdir);
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
-      logger.debug('创建数据目录', { path: dirPath });
+      logger.debug('创建数据目录', {
+        path: dirPath,
+        subdir,
+      });
     }
   }
 
   const uploadsPath = path.join(__dirname, '../uploads');
   if (!fs.existsSync(uploadsPath)) {
     fs.mkdirSync(uploadsPath, { recursive: true });
-    logger.debug('创建上传目录', { path: uploadsPath });
+    logger.debug('创建上传目录', {
+      path: uploadsPath,
+    });
   }
 });
 
