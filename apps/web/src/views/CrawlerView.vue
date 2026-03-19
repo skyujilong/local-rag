@@ -490,7 +490,8 @@ function formatDate(dateStr: string) {
 }
 
 onMounted(() => {
-  crawlerStore.loadTasks();
+  // 不在挂载时加载任务，由 WebSocket 实时同步
+  // crawlerStore.loadTasks();
   crawlerStore.loadSessions();
   crawlerStore.connectWebSocket();
 });
