@@ -13,7 +13,14 @@
     "build:api": "pnpm --filter @local-rag/api build",
     "build:mcp": "pnpm --filter @local-rag/mcp-server build",
     "lint": "pnpm -r lint",
-    "clean": "rm -rf node_modules apps/*/node_modules apps/*/dist packages/*/node_modules"
+    "install:all": "pnpm -r install",
+    "install:web": "pnpm --filter @local-rag/web install",
+    "install:api": "pnpm --filter @local-rag/api install",
+    "install:mcp": "pnpm --filter @local-rag/mcp-server install",
+    "install:shared": "pnpm --filter @local-rag/shared install",
+    "install:config": "pnpm --filter @local-rag/config install",
+    "clean": "rm -rf node_modules apps/*/node_modules apps/*/dist packages/*/node_modules",
+    "fresh": "pnpm clean && pnpm install"
   },
   "keywords": [
     "rag",

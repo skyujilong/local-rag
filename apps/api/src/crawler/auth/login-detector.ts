@@ -36,7 +36,7 @@ export async function detectLoginRequired(page: any): Promise<boolean> {
       const element = await page.$(selector);
       if (element) {
         // 进一步验证：检查元素是否可见
-        const isVisible = await element.is_visible();
+        const isVisible = await element.isVisible();
         if (isVisible) {
           return true;
         }
