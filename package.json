@@ -8,6 +8,7 @@
     "dev:web": "pnpm --filter @local-rag/web dev",
     "dev:api": "pnpm --filter @local-rag/api dev",
     "dev:mcp": "pnpm --filter @local-rag/mcp-server dev",
+    "kill": "pkill -f 'concurrently' && pkill -f 'tsx.*watch' && pkill -f 'vite' || true",
     "build": "pnpm -r build",
     "build:web": "pnpm --filter @local-rag/web build",
     "build:api": "pnpm --filter @local-rag/api build",
