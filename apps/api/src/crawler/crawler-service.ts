@@ -6,6 +6,7 @@ import { chromium, type Browser, type Page, type BrowserContext } from 'playwrig
 import * as cheerio from 'cheerio';
 import { Readability } from '@mozilla/readability';
 import { JSDOM } from 'jsdom';
+import TurndownService from 'turndown';
 import { createLogger, LogSystem } from '@local-rag/shared';
 import * as SessionManager from './session-manager.js';
 import * as LoginDetector from './auth/login-detector.js';
@@ -79,10 +80,12 @@ export interface CrawlOptions {
 
 export interface CrawlResult {
   url: string;
-  documentCount: number;
   success: boolean;
   waitingForXPath?: boolean;
   keepBrowserOpen?: boolean;
+  // 新增：返回 Markdown 内容
+  markdown?: string;
+  title?: string;
 }
 
 /**
@@ -128,6 +131,7 @@ export async function crawl(url: string, options: CrawlOptions = {}): Promise<Cr
     const needsLogin = await LoginDetector.detectLoginRequired(page);
     logger.info('登录检测结果', { needsLogin });
 
+    // 处理登录流程（如果需要且用户选择等待）
     if (needsLogin && options.waitForAuth) {
       logger.info('检测到登录需求，等待用户登录');
       options.onAuthStatusChange?.('detected');
@@ -146,51 +150,46 @@ export async function crawl(url: string, options: CrawlOptions = {}): Promise<Cr
       // 登录成功后调用回调，传递页面引用
       options.onLoginSuccess?.(page);
 
-      // 如果启用了 useXPath，登录成功后停止执行，等待用户输入 XPath
-      if (options.useXPath) {
-        logger.info('等待用户输入 XPath，保持浏览器打开');
-        keepBrowserOpen = true; // 标记需要保持浏览器打开
-        return {
-          url,
-          documentCount: 0,
-          success: true,
-          waitingForXPath: true,
-          keepBrowserOpen: true,
-        };
-      }
-
       // 登录成功后继续使用当前浏览器，不切换到无头模式
-      logger.info('继续使用当前浏览器进行爬取');
+      logger.info('登录成功，继续执行');
+    } else if (needsLogin && !options.waitForAuth) {
+      logger.warn('检测到登录需求但用户未选择等待登录，继续执行（可能无法获取完整内容）');
+    }
+
+    // 处理 XPath 提取模式（独立于登录流程）
+    if (options.useXPath) {
+      logger.info('启用 XPath 模式，等待用户输入 XPath');
+      keepBrowserOpen = true;
+      // 调用回调通知页面已准备好，保存页面引用供后续 XPath 提取使用
+      options.onLoginSuccess?.(page);
+      return {
+        url,
+        success: true,
+        waitingForXPath: true,
+        keepBrowserOpen: true,
+      };
     }
 
     // 获取页面内容
     const html = await page.content();
     logger.info('页面内容已获取', { htmlLength: html.length });
 
-    // 解析内容
+    // 解析内容获取标题
     const content = parseContent(html, url);
     logger.info('内容解析完成', { title: content.title, bodyLength: content.body.length });
 
-    // 创建文档
-    await DocumentManager.createDocument({
-      title: content.title,
-      content: content.body,
-      source: url,
-      metadata: {
-        type: 'webpage',
-        url,
-        language: content.language,
-      },
-    });
-    logger.info('文档已创建', { title: content.title });
+    // 使用 Turndown 将 HTML 转换为 Markdown
+    const markdown = generateMarkdown(html, content.title, url);
+    logger.info('Markdown 已生成', { markdownLength: markdown.length });
 
     options.onProgress?.(1);
 
-    logger.info('爬取成功', { url, documentCount: 1 });
+    logger.info('爬取成功，等待用户确认', { url });
     return {
       url,
-      documentCount: 1,
       success: true,
+      markdown,
+      title: content.title,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -378,68 +377,107 @@ export async function extractContentByXPath(
   }
 }
 
+// Turndown 单例实例
+let turndownService: TurndownService | null = null;
+
 /**
- * 生成 Markdown
+ * 获取 Turndown 服务实例（单例模式）
+ */
+function getTurndownService(): TurndownService {
+  if (!turndownService) {
+    turndownService = new TurndownService({
+      headingStyle: 'atx',        // 使用 # 格式
+      codeBlockStyle: 'fenced',   // 使用 ``` 代码块
+      bulletListMarker: '-',       // 使用 - 作为列表标记
+      emDelimiter: '*',           // 使用 * 作为斜体标记
+      strongDelimiter: '**',       // 使用 ** 作为粗体标记
+      linkStyle: 'inlined',       // 使用内联链接
+    });
+
+    // 自定义规则：处理代码块
+    turndownService.addRule('codeBlock', {
+      filter: (node) => {
+        return (
+          node.nodeName === 'PRE' &&
+          node.firstChild &&
+          node.firstChild.nodeName === 'CODE'
+        );
+      },
+      replacement: (content, node) => {
+        const codeNode = node.firstChild;
+        const className = codeNode?.className || '';
+        const language = className.match(/language-(\w+)/)?.[1] || '';
+        return '\n\n```' + language + '\n' + content + '\n```\n\n';
+      },
+    });
+
+    // 自定义规则：处理表格
+    turndownService.addRule('table', {
+      filter: 'table',
+      replacement: (_content) => {
+        return '\n\n' + _content + '\n\n';
+      },
+    });
+
+    // 自定义规则：处理图片
+    turndownService.addRule('image', {
+      filter: 'img',
+      replacement: (_content, node) => {
+        const alt = node.getAttribute('alt') || '';
+        const src = node.getAttribute('src') || '';
+        return `![${alt}](${src})`;
+      },
+    });
+
+    // 自定义规则：处理引用
+    turndownService.addRule('blockquote', {
+      filter: 'blockquote',
+      replacement: (content) => {
+        return '\n\n> ' + content.trim().replace(/\n/g, '\n> ') + '\n\n';
+      },
+    });
+
+    // 自定义规则：跳过不需要的元素
+    turndownService.addRule('removeScript', {
+      filter: ['script', 'style', 'nav', 'footer', 'iframe', 'noscript'],
+      replacement: () => '',
+    });
+
+    // 自定义规则：跳过广告元素（注意：已在 cheerio 预处理中移除，此处作为保险）
+    turndownService.addRule('removeAd', {
+      filter: (node) => {
+        return node.nodeName === 'DIV' &&
+               typeof node.className === 'string' &&
+               node.className.includes('ad');
+      },
+      replacement: () => '',
+    });
+  }
+
+  return turndownService;
+}
+
+/**
+ * 生成 Markdown（使用 Turndown）
  */
 export function generateMarkdown(
   html: string,
   title: string,
   url: string
 ): string {
+  const turndown = getTurndownService();
+
+  // 预处理 HTML：移除不需要的元素
   const $ = cheerio.load(html);
+  $('script, style, nav, footer, .ad, iframe, noscript').remove();
 
-  // 移除不需要的元素
-  $('script, style, nav, footer, .ad').remove();
+  const cleanedHtml = $.html();
 
-  let markdown = `# ${title}\n\n`;
-  markdown += `> 来源: ${url}\n\n`;
+  // 转换为 Markdown
+  let markdown = turndown.turndown(cleanedHtml);
 
-  // 转换标题
-  $('h1, h2, h3, h4, h5, h6').each((_, el) => {
-    const tagName = el.tagName;
-    const level = parseInt(tagName[1]);
-    const text = $(el).text().trim();
-    const prefix = '#'.repeat(level + 1);
-    markdown += `${prefix} ${text}\n\n`;
-    $(el).remove();
-  });
-
-  // 转换段落
-  $('p').each((_, el) => {
-    const text = $(el).text().trim();
-    if (text) {
-      markdown += `${text}\n\n`;
-    }
-    $(el).remove();
-  });
-
-  // 转换列表
-  $('ul, ol').each((_, el) => {
-    const isOrdered = el.tagName === 'ol';
-    $(el).find('li').each((index, li) => {
-      const text = $(li).text().trim();
-      const prefix = isOrdered ? `${index + 1}. ` : '- ';
-      markdown += `${prefix}${text}\n`;
-    });
-    markdown += '\n';
-    $(el).remove();
-  });
-
-  // 转换链接
-  $('a').each((_, el) => {
-    const text = $(el).text().trim();
-    const href = $(el).attr('href');
-    if (text && href) {
-      markdown += `[${text}](${href})`;
-    }
-    $(el).remove();
-  });
-
-  // 剩余文本
-  const remainingText = $.root().text().trim();
-  if (remainingText) {
-    markdown += remainingText;
-  }
+  // 添加标题和来源信息
+  markdown = `# ${title}\n\n> 来源: ${url}\n\n` + markdown;
 
   return markdown;
 }

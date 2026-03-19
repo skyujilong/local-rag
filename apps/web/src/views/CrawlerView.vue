@@ -79,6 +79,14 @@
           <n-alert type="success" style="margin-bottom: 16px;">
             已提取内容，请确认是否符合预期。确认后将保存为草稿。
           </n-alert>
+
+          <!-- 添加：显示 Markdown 字符数 -->
+          <div v-if="currentTask.previewMarkdown" class="markdown-info">
+            <n-tag type="info" size="small">
+              {{ currentTask.previewMarkdown.length }} 字符
+            </n-tag>
+          </div>
+
           <div class="markdown-preview">
             <div v-html="renderedMarkdown" class="markdown-content"></div>
           </div>
@@ -93,6 +101,28 @@
           <n-alert v-if="draftId" type="info" style="margin-top: 16px;">
             草稿已保存，ID: {{ draftId }}
           </n-alert>
+        </n-card>
+
+        <!-- 新增：实时进度面板 -->
+        <n-card v-if="showProgressPanel" title="任务进度" style="margin-top: 20px;">
+          <n-progress
+            type="line"
+            :percentage="currentTaskProgress"
+            :status="progressStatus"
+            :show-indicator="true"
+          />
+          <div class="progress-details">
+            <div class="step-info">
+              <span class="step-label">当前步骤：</span>
+              <span class="step-value">{{ currentTask?.progress?.currentStep }}</span>
+            </div>
+            <div class="step-stats">
+              <span>步骤 {{ currentTask?.progress?.currentStepNumber }} / {{ currentTask?.progress?.totalSteps }}</span>
+            </div>
+            <div v-if="currentTask?.progress?.stepDetails" class="step-details">
+              {{ currentTask.progress.stepDetails }}
+            </div>
+          </div>
         </n-card>
 
         <!-- 浏览器控制面板 -->
@@ -170,7 +200,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, h, computed, onMounted, onUnmounted } from 'vue';
+import { ref, h, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useCrawlerStore } from '@/stores';
 import { message } from '@/utils/message';
 // import type { CrawlerTask } from '@/types';
@@ -200,10 +230,48 @@ const currentTask = computed(() => {
   );
 });
 
+// 监听当前任务变化，确保预览更新
+watch(
+  () => currentTask.value?.previewMarkdown,
+  (newMarkdown) => {
+    if (newMarkdown) {
+      console.log('预览 Markdown 已更新:', newMarkdown.length, '字符');
+    }
+  },
+  { immediate: true }
+);
+
 const renderedMarkdown = computed(() => {
-  return currentTask.value?.previewMarkdown
-    ? md.render(currentTask.value.previewMarkdown)
-    : '';
+  if (!currentTask.value?.previewMarkdown) {
+    return '';
+  }
+
+  console.log('渲染 Markdown:', currentTask.value.previewMarkdown.length, '字符');
+  return md.render(currentTask.value.previewMarkdown);
+});
+
+// 新增：进度面板显示逻辑
+const showProgressPanel = computed(() => {
+  return currentTask.value?.status === 'running' ||
+         currentTask.value?.status === 'waiting_auth' ||
+         currentTask.value?.status === 'waiting_xpath';
+});
+
+// 新增：当前任务进度百分比
+const currentTaskProgress = computed(() => {
+  return currentTask.value?.progress?.progressPercentage || 0;
+});
+
+// 新增：进度状态
+const progressStatus = computed(() => {
+  const status = currentTask.value?.status;
+  if (status === 'running' || status === 'waiting_auth') {
+    return 'info' as const;
+  }
+  if (status === 'waiting_xpath') {
+    return 'warning' as const;
+  }
+  return 'default' as const;
 });
 
 // 显示浏览器控制面板：任务已完成且使用了 XPath 模式
@@ -314,12 +382,17 @@ async function confirmContent(confirmed: boolean) {
     return;
   }
   try {
-    const result = await crawlerStore.confirmContent(currentTask.value.id, confirmed);
-    if (confirmed && result) {
-      draftId.value = (result as any).draftId || '';
-      message.success('草稿已保存，浏览器将关闭');
-    } else {
-      message.info('请重新输入 XPath');
+    const response = await crawlerStore.confirmContent(currentTask.value.id, confirmed);
+    if (confirmed && response.data?.draftId) {
+      draftId.value = response.data.draftId;
+      message.success('草稿已保存');
+    } else if (!confirmed) {
+      // 用户取消，显示相应消息
+      if (currentTask.value.useXPath) {
+        message.info('请重新输入 XPath');
+      } else {
+        message.info('已取消，您可以重新创建爬取任务');
+      }
     }
   } catch {
     message.error('操作失败');
@@ -540,6 +613,50 @@ onUnmounted(() => {
 .markdown-content :deep(pre code) {
   padding: 0;
   background-color: transparent;
+}
+
+.markdown-info {
+  margin-bottom: 12px;
+}
+
+/* 进度面板样式 */
+.progress-details {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 4px;
+}
+
+.step-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.step-label {
+  font-weight: 500;
+  color: #666;
+}
+
+.step-value {
+  font-weight: 600;
+  color: #333;
+}
+
+.step-stats {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+
+.step-details {
+  font-size: 13px;
+  color: #666;
+  padding: 8px;
+  background: #fff;
+  border-radius: 4px;
+  border-left: 3px solid #409eff;
 }
 
 /* XPath 使用指南样式 */

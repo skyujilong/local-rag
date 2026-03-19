@@ -74,12 +74,12 @@ export const useCrawlerStore = defineStore('crawler', () => {
    */
   async function confirmContent(taskId: string, confirmed: boolean) {
     const response = await crawlerApi.confirmContent({ taskId, confirmed });
-    if (response.success && response.data) {
+    if (response.success) {
       const index = tasks.value.findIndex(t => t.id === taskId);
-      if (index !== -1) {
+      if (index !== -1 && response.data) {
         tasks.value[index] = response.data;
       }
-      return response.data;
+      return response; // 返回完整响应，包含 message
     }
     return undefined;
   }
@@ -128,6 +128,7 @@ export const useCrawlerStore = defineStore('crawler', () => {
     ws.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+        console.log('WebSocket 消息接收:', message.type, message.data);
         handleWebSocketMessage(message);
       } catch (error) {
         console.error('解析 WebSocket 消息失败:', error);
@@ -149,16 +150,41 @@ export const useCrawlerStore = defineStore('crawler', () => {
    * 处理 WebSocket 消息
    */
   function handleWebSocketMessage(message: { type: string; data: any }) {
+    console.log('处理 WebSocket 消息:', message.type, message.data);
+
     switch (message.type) {
       case 'crawler:task:created':
-      case 'crawler:task:updated':
+      case 'crawler:task:updated': {
         const index = tasks.value.findIndex(t => t.id === message.data.id);
+
         if (index !== -1) {
-          tasks.value[index] = message.data;
+          // 使用 Vue 3 的响应式 API 确保更新
+          const updatedTask = {
+            ...tasks.value[index],
+            ...message.data,
+            // 确保 previewMarkdown 被正确更新
+            previewMarkdown: message.data.previewMarkdown,
+            // 确保 progress 对象被正确合并
+            progress: {
+              ...tasks.value[index].progress,
+              ...message.data.progress,
+            },
+          };
+
+          // 使用 splice 触发响应式更新
+          tasks.value.splice(index, 1, updatedTask);
+
+          console.log('任务已更新:', updatedTask.id, updatedTask.status, {
+            previewMarkdownLength: updatedTask.previewMarkdown?.length,
+            progress: updatedTask.progress,
+          });
         } else {
+          // 新任务，添加到列表开头
           tasks.value.unshift(message.data);
+          console.log('新任务已创建:', message.data.id);
         }
         break;
+      }
     }
   }
 

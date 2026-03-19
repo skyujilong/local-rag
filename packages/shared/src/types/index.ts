@@ -76,6 +76,15 @@ export type CrawlerTaskStatus =
   | 'completed'
   | 'failed';
 
+// 爬虫任务进度信息
+export interface CrawlerTaskProgress {
+  currentStep: string;           // 当前步骤描述
+  currentStepNumber: number;     // 当前步骤编号（1-based）
+  totalSteps: number;            // 总步骤数
+  progressPercentage: number;    // 进度百分比（0-100）
+  stepDetails?: string;          // 步骤详细信息
+}
+
 export interface CrawlerTask {
   id: string;
   url: string;
@@ -89,6 +98,17 @@ export interface CrawlerTask {
   completedAt?: Date;
   error?: string;
   documentCount?: number;
+  // 新增进度信息
+  progress?: CrawlerTaskProgress;
+  // 新增时间戳
+  lastUpdatedAt?: Date;
+  // 新增元数据
+  metadata?: {
+    browserPid?: number;
+    pageId?: string;
+    sessionId?: string;
+    [key: string]: any;
+  };
 }
 
 export interface XPathSubmitRequest {
