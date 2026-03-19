@@ -16,6 +16,10 @@ def parse_time(time_str: str, reference: datetime = None) -> datetime:
     if reference is None:
         reference = datetime.now()
 
+    # 特殊关键字 "now"
+    if time_str.lower() == 'now':
+        return reference
+
     # 相对时间格式
     if time_str.endswith(' ago'):
         parts = time_str[:-4].strip()

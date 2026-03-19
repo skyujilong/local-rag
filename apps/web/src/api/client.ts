@@ -46,6 +46,7 @@ export async function request<T = any>(config: {
   url: string;
   data?: any;
   params?: any;
+  headers?: Record<string, string>;
 }): Promise<ApiResponse<T>> {
   const response = await apiClient.request<ApiResponse<T>>(config);
   return response.data;

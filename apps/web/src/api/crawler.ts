@@ -3,7 +3,7 @@
  */
 
 import { request } from './client';
-import type { CrawlerTask, CrawlerSession, ApiResponse } from '@/types';
+import type { CrawlerTask, CrawlerSession, ApiResponse, XPathSubmitRequest, ContentConfirmRequest } from '@/types';
 
 export const crawlerApi = {
   /**
@@ -32,6 +32,7 @@ export const crawlerApi = {
   async start(data: {
     url: string;
     waitForAuth?: boolean;
+    useXPath?: boolean;
   }): Promise<ApiResponse<CrawlerTask>> {
     return request({
       method: 'post',
@@ -47,6 +48,39 @@ export const crawlerApi = {
     return request({
       method: 'post',
       url: `/crawler/tasks/${id}/cancel`,
+    });
+  },
+
+  /**
+   * 提交 XPath
+   */
+  async submitXPath(data: XPathSubmitRequest): Promise<ApiResponse<CrawlerTask>> {
+    return request({
+      method: 'post',
+      url: '/crawler/xpath',
+      data,
+    });
+  },
+
+  /**
+   * 确认内容
+   */
+  async confirmContent(data: ContentConfirmRequest): Promise<ApiResponse<CrawlerTask>> {
+    return request({
+      method: 'post',
+      url: '/crawler/confirm',
+      data,
+    });
+  },
+
+  /**
+   * 关闭浏览器
+   */
+  async closeBrowser(taskId: string): Promise<ApiResponse> {
+    return request({
+      method: 'post',
+      url: '/crawler/close-browser',
+      data: { taskId },
     });
   },
 

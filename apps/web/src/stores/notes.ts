@@ -78,6 +78,7 @@ export const useNotesStore = defineStore('notes', () => {
       notes.value.unshift(response.data);
       return response.data;
     }
+    return undefined;
   }
 
   /**
@@ -102,6 +103,7 @@ export const useNotesStore = defineStore('notes', () => {
       }
       return response.data;
     }
+    return undefined;
   }
 
   /**

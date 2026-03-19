@@ -66,16 +66,46 @@ export interface RAGDocumentChunk {
 }
 
 // 爬虫类型
+export type CrawlerTaskStatus =
+  | 'pending'
+  | 'running'
+  | 'waiting_auth'
+  | 'waiting_xpath'
+  | 'ready_crawl'
+  | 'waiting_confirm'
+  | 'completed'
+  | 'failed';
+
 export interface CrawlerTask {
   id: string;
   url: string;
-  status: 'pending' | 'running' | 'waiting_auth' | 'completed' | 'failed';
+  status: CrawlerTaskStatus;
   waitForAuth: boolean;
+  useXPath?: boolean;
   authStatus?: 'none' | 'detected' | 'waiting_qrcode' | 'success' | 'failed';
+  xpath?: string;
+  previewMarkdown?: string;
   startedAt?: Date;
   completedAt?: Date;
   error?: string;
   documentCount?: number;
+}
+
+export interface XPathSubmitRequest {
+  taskId: string;
+  xpath: string;
+}
+
+export interface ContentPreview {
+  taskId: string;
+  markdown: string;
+  title: string;
+  previewLength: number;
+}
+
+export interface ContentConfirmRequest {
+  taskId: string;
+  confirmed: boolean;
 }
 
 export interface CrawlerSession {

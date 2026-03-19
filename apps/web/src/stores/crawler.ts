@@ -6,6 +6,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { crawlerApi } from '@/api/crawler';
 import type { CrawlerTask, CrawlerSession } from '@/types';
+import { message } from '@/utils/message';
 
 export const useCrawlerStore = defineStore('crawler', () => {
   const tasks = ref<CrawlerTask[]>([]);
@@ -34,12 +35,12 @@ export const useCrawlerStore = defineStore('crawler', () => {
   async function startCrawler(data: {
     url: string;
     waitForAuth?: boolean;
+    useXPath?: boolean;
   }) {
     const response = await crawlerApi.start(data);
-    if (response.success && response.data) {
-      tasks.value.unshift(response.data);
-      return response.data;
-    }
+    // 注意：不再手动添加任务到列表，由 WebSocket 消息统一管理
+    // 这样可以避免重复添加
+    return response.data;
   }
 
   /**
@@ -52,6 +53,44 @@ export const useCrawlerStore = defineStore('crawler', () => {
       if (index !== -1) {
         tasks.value[index] = response.data!;
       }
+    }
+  }
+
+  /**
+   * 提交 XPath
+   */
+  async function submitXPath(taskId: string, xpath: string) {
+    const response = await crawlerApi.submitXPath({ taskId, xpath });
+    if (response.success && response.data) {
+      const index = tasks.value.findIndex(t => t.id === taskId);
+      if (index !== -1) {
+        tasks.value[index] = response.data;
+      }
+    }
+  }
+
+  /**
+   * 确认内容
+   */
+  async function confirmContent(taskId: string, confirmed: boolean) {
+    const response = await crawlerApi.confirmContent({ taskId, confirmed });
+    if (response.success && response.data) {
+      const index = tasks.value.findIndex(t => t.id === taskId);
+      if (index !== -1) {
+        tasks.value[index] = response.data;
+      }
+      return response.data;
+    }
+    return undefined;
+  }
+
+  /**
+   * 关闭浏览器
+   */
+  async function closeBrowser(taskId: string) {
+    const response = await crawlerApi.closeBrowser(taskId);
+    if (response.success) {
+      message.success('浏览器已关闭');
     }
   }
 
@@ -131,6 +170,9 @@ export const useCrawlerStore = defineStore('crawler', () => {
     loadTasks,
     startCrawler,
     cancelTask,
+    submitXPath,
+    confirmContent,
+    closeBrowser,
     loadSessions,
     deleteSession,
     connectWebSocket,

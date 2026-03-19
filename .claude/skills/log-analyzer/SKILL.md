@@ -39,6 +39,7 @@ python3 .claude/skills/log-analyzer/scripts/merge_logs.py <start-time> <end-time
 - ISO 8601: `2026-03-19T12:00:00`
 - 简短格式: `2026-03-19 12:00:00`
 - 相对时间: `1h ago`、`30m ago`
+- 当前时间: `now`（作为结束时间）
 
 脚本会：
 1. 读取 `logs/` 目录下所有 `.log` 文件

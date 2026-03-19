@@ -2,10 +2,12 @@
  * 登录检测器 - 检测页面是否需要登录
  */
 
+import type { Page } from 'playwright';
+
 /**
  * 检测页面是否需要登录
  */
-export async function detectLoginRequired(page: any): Promise<boolean> {
+export async function detectLoginRequired(page: Page): Promise<boolean> {
   // 常见的登录页面选择器
   const loginSelectors = [
     // 通用登录选择器
@@ -33,13 +35,10 @@ export async function detectLoginRequired(page: any): Promise<boolean> {
   // 检查是否存在登录相关元素
   for (const selector of loginSelectors) {
     try {
-      const element = await page.$(selector);
-      if (element) {
-        // 进一步验证：检查元素是否可见
-        const isVisible = await element.isVisible();
-        if (isVisible) {
-          return true;
-        }
+      const locator = page.locator(selector).first();
+      const isVisible = await locator.isVisible().catch(() => false);
+      if (isVisible) {
+        return true;
       }
     } catch {
       // 选择器无效，继续检查下一个
@@ -80,7 +79,7 @@ export async function detectLoginRequired(page: any): Promise<boolean> {
 /**
  * 检测是否为二维码登录页面
  */
-export async function isQRCodeLogin(page: any): Promise<boolean> {
+export async function isQRCodeLogin(page: Page): Promise<boolean> {
   const qrCodeSelectors = [
     '.qrcode img',
     '.qr-login img',
@@ -92,8 +91,9 @@ export async function isQRCodeLogin(page: any): Promise<boolean> {
 
   for (const selector of qrCodeSelectors) {
     try {
-      const element = await page.$(selector);
-      if (element) {
+      const locator = page.locator(selector).first();
+      const count = await locator.count();
+      if (count > 0) {
         return true;
       }
     } catch {

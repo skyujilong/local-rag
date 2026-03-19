@@ -50,6 +50,7 @@ export const useEditorStore = defineStore('editor', () => {
         isReady.value = true;
         return response.data;
       }
+      return undefined;
     } catch (err) {
       console.error('加载笔记失败:', err);
       throw err;

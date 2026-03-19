@@ -3,7 +3,7 @@
     <n-grid :cols="16" :x-gap="20">
       <n-grid-item :span="10">
         <n-card title="新建爬取任务">
-          <n-form :model="crawlerForm" label-placement="left" label-width="120px">
+          <n-form :model="crawlerForm" label-placement="left" label-width="140px">
             <n-form-item label="目标 URL">
               <n-input
                 v-model:value="crawlerForm.url"
@@ -13,6 +13,10 @@
             <n-form-item label="等待登录">
               <n-switch v-model:value="crawlerForm.waitForAuth" />
               <span class="hint">开启后会打开浏览器等待扫码登录</span>
+            </n-form-item>
+            <n-form-item label="使用 XPath 精确提取">
+              <n-switch v-model:value="crawlerForm.useXPath" />
+              <span class="hint">开启后登录成功需手动输入 XPath 提取内容</span>
             </n-form-item>
             <n-form-item>
               <n-button
@@ -27,6 +31,80 @@
               </n-button>
             </n-form-item>
           </n-form>
+        </n-card>
+
+        <!-- XPath 输入面板 -->
+        <n-card v-if="currentTask?.status === 'waiting_xpath'" title="设置内容提取区域" style="margin-top: 20px;">
+          <n-alert type="info" style="margin-bottom: 16px;">
+            <template #header>
+              如何获取 XPath？
+            </template>
+            <ol style="margin: 8px 0; padding-left: 20px;">
+              <li>在打开的浏览器窗口中，找到要提取的内容区域</li>
+              <li>右键点击该内容，选择"检查"或"审查元素"</li>
+              <li>在开发者工具中，右键点击高亮的 HTML 元素</li>
+              <li>选择 Copy → Copy XPath（复制 XPath）</li>
+              <li>将复制的 XPath 粘贴到下方输入框</li>
+            </ol>
+            <div style="margin-top: 12px; padding: 8px 12px; background: #f0f9ff; border-radius: 4px;">
+              <strong>常用 XPath 示例：</strong>
+              <ul style="margin: 4px 0; padding-left: 20px;">
+                <li><code>//article</code> - 提取文章内容</li>
+                <li><code>//div[@class='content']</code> - 提取 class 为 content 的 div</li>
+                <li><code>//main</code> - 提取主要内容区域</li>
+                <li><code>//div[@id='post-content']</code> - 提取 id 为 post-content 的元素</li>
+              </ul>
+            </div>
+          </n-alert>
+          <n-form-item label="XPath 表达式">
+            <n-input
+              v-model:value="xpathInput"
+              placeholder="//div[@class='content']"
+              type="textarea"
+              :rows="3"
+            />
+          </n-form-item>
+          <n-space>
+            <n-button type="primary" @click="submitXPath" :loading="submitting">
+              提取预览
+            </n-button>
+            <n-button @click="cancelTask">
+              取消任务
+            </n-button>
+          </n-space>
+        </n-card>
+
+        <!-- 内容确认面板 -->
+        <n-card v-if="currentTask?.status === 'waiting_confirm'" title="确认爬取内容" style="margin-top: 20px;">
+          <n-alert type="success" style="margin-bottom: 16px;">
+            已提取内容，请确认是否符合预期。确认后将保存为草稿。
+          </n-alert>
+          <div class="markdown-preview">
+            <div v-html="renderedMarkdown" class="markdown-content"></div>
+          </div>
+          <n-space style="margin-top: 16px;">
+            <n-button type="primary" @click="confirmContent(true)">
+              确认并保存草稿
+            </n-button>
+            <n-button @click="confirmContent(false)">
+              重新提取
+            </n-button>
+          </n-space>
+          <n-alert v-if="draftId" type="info" style="margin-top: 16px;">
+            草稿已保存，ID: {{ draftId }}
+          </n-alert>
+        </n-card>
+
+        <!-- 浏览器控制面板 -->
+        <n-card v-if="showBrowserControl" title="浏览器控制" style="margin-top: 20px;" class="browser-control-card">
+          <n-alert type="info" style="margin-bottom: 16px;">
+            浏览器保持打开中，您可以继续使用或手动关闭
+          </n-alert>
+          <n-space>
+            <n-button type="error" @click="handleCloseBrowser">
+              关闭浏览器
+            </n-button>
+          </n-space>
         </n-card>
 
         <n-card title="任务列表" style="margin-top: 20px;">
@@ -98,17 +176,47 @@ import { message } from '@/utils/message';
 // import type { CrawlerTask } from '@/types';
 import { NButton, NTag, NIcon, type DataTableColumns } from 'naive-ui';
 import { PlayOutline, GlobeOutline } from '@vicons/ionicons5';
+import MarkdownIt from 'markdown-it';
 
+const md = new MarkdownIt();
 const crawlerStore = useCrawlerStore();
 
 const crawlerForm = ref({
   url: '',
   waitForAuth: false,
+  useXPath: false,
 });
+
+const xpathInput = ref('');
+const submitting = ref(false);
+const draftId = ref('');
 
 const currentTask = computed(() => {
   return crawlerStore.tasks.find(t =>
-    t.status === 'running' || t.status === 'waiting_auth'
+    t.status === 'running' ||
+    t.status === 'waiting_auth' ||
+    t.status === 'waiting_xpath' ||
+    t.status === 'waiting_confirm'
+  );
+});
+
+const renderedMarkdown = computed(() => {
+  return currentTask.value?.previewMarkdown
+    ? md.render(currentTask.value.previewMarkdown)
+    : '';
+});
+
+// 显示浏览器控制面板：任务已完成且使用了 XPath 模式
+const showBrowserControl = computed(() => {
+  return crawlerStore.tasks.some(t =>
+    (t.status === 'completed' || t.status === 'waiting_confirm') && t.useXPath === true
+  );
+});
+
+// 获取已完成的 XPath 任务
+const completedXPathTask = computed(() => {
+  return crawlerStore.tasks.find(t =>
+    (t.status === 'completed' || t.status === 'waiting_confirm') && t.useXPath === true
   );
 });
 
@@ -153,7 +261,7 @@ const taskColumns = computed<DataTableColumns<any>>(() => [
     key: 'actions',
     width: 100,
     render: (row) => {
-      if (row.status === 'running' || row.status === 'waiting_auth') {
+      if (row.status === 'running' || row.status === 'waiting_auth' || row.status === 'waiting_xpath' || row.status === 'waiting_confirm') {
         return h(NButton, {
           text: true,
           type: 'warning',
@@ -180,8 +288,72 @@ async function startCrawler() {
   }
 }
 
+async function submitXPath() {
+  if (!xpathInput.value) {
+    message.warning('请输入 XPath');
+    return;
+  }
+  if (!currentTask.value) {
+    message.error('当前没有活动任务');
+    return;
+  }
+  submitting.value = true;
+  try {
+    await crawlerStore.submitXPath(currentTask.value.id, xpathInput.value);
+    message.success('内容提取成功');
+  } catch {
+    message.error('提取失败，请检查 XPath 是否正确');
+  } finally {
+    submitting.value = false;
+  }
+}
+
+async function confirmContent(confirmed: boolean) {
+  if (!currentTask.value) {
+    message.error('当前没有活动任务');
+    return;
+  }
+  try {
+    const result = await crawlerStore.confirmContent(currentTask.value.id, confirmed);
+    if (confirmed && result) {
+      draftId.value = (result as any).draftId || '';
+      message.success('草稿已保存，浏览器将关闭');
+    } else {
+      message.info('请重新输入 XPath');
+    }
+  } catch {
+    message.error('操作失败');
+  }
+}
+
+async function cancelTask() {
+  if (!currentTask.value) {
+    message.error('当前没有活动任务');
+    return;
+  }
+  try {
+    await crawlerStore.cancelTask(currentTask.value.id);
+    message.info('任务已取消');
+    xpathInput.value = '';
+  } catch {
+    message.error('取消任务失败');
+  }
+}
+
 function handleDeleteSession(domain: string) {
   crawlerStore.deleteSession(domain);
+}
+
+async function handleCloseBrowser() {
+  if (!completedXPathTask.value) {
+    message.error('没有找到需要关闭浏览器的任务');
+    return;
+  }
+  try {
+    await crawlerStore.closeBrowser(completedXPathTask.value.id);
+  } catch {
+    message.error('关闭浏览器失败');
+  }
 }
 
 function getStatusTagType(status: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error' {
@@ -189,6 +361,9 @@ function getStatusTagType(status: string): 'default' | 'primary' | 'info' | 'suc
     pending: 'info',
     running: 'warning',
     waiting_auth: 'warning',
+    waiting_xpath: 'info',
+    ready_crawl: 'primary',
+    waiting_confirm: 'primary',
     completed: 'success',
     failed: 'error',
   };
@@ -200,6 +375,9 @@ function getStatusLabel(status: string) {
     pending: '等待中',
     running: '运行中',
     waiting_auth: '等待登录',
+    waiting_xpath: '等待输入 XPath',
+    ready_crawl: '准备爬取',
+    waiting_confirm: '等待确认',
     completed: '已完成',
     failed: '失败',
   };
@@ -277,5 +455,126 @@ onUnmounted(() => {
   font-size: 12px;
   color: #909399;
   margin-bottom: 8px;
+}
+
+.markdown-preview {
+  max-height: 500px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 16px;
+  background-color: #f9f9f9;
+}
+
+.markdown-content {
+  color: #333;
+  line-height: 1.6;
+}
+
+.markdown-content :deep(h1) {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 16px 0 8px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 8px;
+}
+
+.markdown-content :deep(h2) {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 14px 0 6px;
+}
+
+.markdown-content :deep(h3) {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 12px 0 6px;
+}
+
+.markdown-content :deep(p) {
+  margin: 8px 0;
+}
+
+.markdown-content :deep(ul),
+.markdown-content :deep(ol) {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.markdown-content :deep(li) {
+  margin: 4px 0;
+}
+
+.markdown-content :deep(a) {
+  color: #409eff;
+  text-decoration: none;
+}
+
+.markdown-content :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.markdown-content :deep(blockquote) {
+  margin: 12px 0;
+  padding: 8px 16px;
+  border-left: 4px solid #409eff;
+  background-color: #f0f9ff;
+  color: #666;
+}
+
+.markdown-content :deep(code) {
+  padding: 2px 6px;
+  background-color: #f5f5f5;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+}
+
+.markdown-content :deep(pre) {
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.markdown-content :deep(pre code) {
+  padding: 0;
+  background-color: transparent;
+}
+
+/* XPath 使用指南样式 */
+:deep(.n-alert__content) ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+:deep(.n-alert__content) li {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+
+:deep(.n-alert__content) code {
+  padding: 2px 6px;
+  background-color: #f5f5f5;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: #e83e8c;
+}
+
+:deep(.n-alert__content) ul {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+/* 浏览器控制面板样式 */
+.browser-control-card {
+  border: 2px solid #409eff;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+}
+
+.browser-control-card :deep(.n-card__header) {
+  color: #409eff;
+  font-weight: 600;
 }
 </style>

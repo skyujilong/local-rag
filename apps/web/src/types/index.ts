@@ -42,13 +42,46 @@ export interface DocumentMetadata {
 export interface CrawlerTask {
   id: string;
   url: string;
-  status: 'pending' | 'running' | 'waiting_auth' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'waiting_auth' | 'waiting_xpath' | 'ready_crawl' | 'waiting_confirm' | 'completed' | 'failed';
   waitForAuth: boolean;
+  useXPath?: boolean;
   authStatus?: 'none' | 'detected' | 'waiting_qrcode' | 'success' | 'failed';
+  xpath?: string;
+  previewMarkdown?: string;
   startedAt?: string;
   completedAt?: string;
   error?: string;
   documentCount?: number;
+}
+
+export interface CrawlerSession {
+  domain: string;
+  createdAt: string;
+  updatedAt: string;
+  cookies: Cookie[];
+  localStorage: Record<string, string>;
+  userAgent: string;
+}
+
+export interface Cookie {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  expires?: number;
+  secure?: boolean;
+  httpOnly?: boolean;
+  sameSite?: 'Strict' | 'Lax' | 'None';
+}
+
+export interface XPathSubmitRequest {
+  taskId: string;
+  xpath: string;
+}
+
+export interface ContentConfirmRequest {
+  taskId: string;
+  confirmed: boolean;
 }
 
 export interface ApiResponse<T = any> {
