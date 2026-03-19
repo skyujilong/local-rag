@@ -22,6 +22,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/NoteDetail.vue'),
   },
   {
+    path: '/notes/:id/edit',
+    name: 'NoteEditor',
+    component: () => import('@/views/NoteEditor.vue'),
+  },
+  {
     path: '/knowledge',
     name: 'Knowledge',
     component: () => import('@/views/KnowledgeView.vue'),

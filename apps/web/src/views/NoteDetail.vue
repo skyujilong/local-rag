@@ -1,65 +1,64 @@
 <template>
   <div class="note-detail-view" v-if="note">
-    <el-card>
+    <n-card>
       <template #header>
         <div class="header">
           <div>
-            <h1>{{ note.title }}</h1>
+            <n-h1>{{ note.title }}</n-h1>
             <div class="meta">
-              <el-tag
-                v-for="tag in note.tags"
-                :key="tag"
-                size="small"
-                style="margin-right: 8px;"
-              >
-                {{ tag }}
-              </el-tag>
-              <span class="time">{{ formatDate(note.updatedAt) }}</span>
+              <n-space>
+                <n-tag
+                  v-for="tag in note.tags"
+                  :key="tag"
+                  size="small"
+                  :bordered="false"
+                  type="info"
+                >
+                  {{ tag }}
+                </n-tag>
+                <span class="time">{{ formatDate(note.updatedAt) }}</span>
+              </n-space>
             </div>
           </div>
           <div class="actions">
-            <el-button @click="$router.push('/notes')">返回</el-button>
-            <el-button type="primary" @click="isEditing = !isEditing">
-              {{ isEditing ? '预览' : '编辑' }}
-            </el-button>
+            <n-space>
+              <n-button @click="$router.push('/notes')">返回</n-button>
+              <n-button type="primary" @click="$router.push(`/notes/${note.id}/edit`)">
+                <template #icon>
+                  <n-icon :component="PencilOutline" />
+                </template>
+                编辑
+              </n-button>
+            </n-space>
           </div>
         </div>
       </template>
 
-      <el-input
-        v-if="isEditing"
-        v-model="editContent"
-        type="textarea"
-        :rows="20"
-        @blur="saveContent"
-      />
-      <div v-else class="markdown-content" v-html="renderedContent"></div>
-    </el-card>
+      <div class="markdown-content" v-html="renderedContent"></div>
+    </n-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { useNotesStore } from '@/stores';
 import MarkdownIt from 'markdown-it';
-import { useNotesStore } from '@/stores';
+import type { Note } from '@/types';
+import { PencilOutline } from '@vicons/ionicons5';
 
 const route = useRoute();
-const router = useRouter();
 const notesStore = useNotesStore();
 
 const note = ref<Note | null>(null);
-const isEditing = ref(false);
-const editContent = ref('');
 
 const md = new MarkdownIt({
   html: true,
   linkify: true,
   highlight: (str, lang) => {
-    if (lang && hl.getLanguage(lang)) {
+    if (lang && (window as any).hl && (window as any).hl.getLanguage(lang)) {
       try {
-        return hl.highlight(str, { language: lang }).value;
+        return (window as any).hl.highlight(str, { language: lang }).value;
       } catch {}
     }
     return '';
@@ -70,15 +69,6 @@ const renderedContent = computed(() => {
   return md.render(note.value?.content || '');
 });
 
-async function saveContent() {
-  if (note.value && editContent.value !== note.value.content) {
-    await notesStore.updateNote(note.value.id, {
-      content: editContent.value,
-    });
-    note.value!.content = editContent.value;
-  }
-}
-
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleString('zh-CN');
 }
@@ -87,9 +77,6 @@ onMounted(async () => {
   const id = route.params.id as string;
   await notesStore.loadNote(id);
   note.value = notesStore.currentNote;
-  if (note.value) {
-    editContent.value = note.value.content;
-  }
 });
 </script>
 
@@ -103,9 +90,10 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 16px;
 }
 
-.header h1 {
+.header :deep(.n-h1) {
   margin: 0 0 8px 0;
   font-size: 24px;
 }

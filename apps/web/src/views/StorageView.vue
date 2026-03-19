@@ -1,67 +1,97 @@
 <template>
   <div class="storage-view">
-    <el-card>
+    <n-card>
       <template #header>
         <div class="header">
           <span>文件索引</span>
-          <el-button type="primary" @click="showIndexDialog = true">
-            <el-icon><FolderOpened /></el-icon>
+          <n-button type="primary" @click="showIndexModal = true">
+            <template #icon>
+              <n-icon :component="FolderOpenOutline" />
+            </template>
             索引文件
-          </el-button>
+          </n-button>
         </div>
       </template>
 
-      <el-table :data="files" v-loading="loading">
-        <el-table-column prop="name" label="文件名" />
-        <el-table-column prop="type" label="类型" width="100" />
-        <el-table-column prop="size" label="大小" width="100">
-          <template #default="{ row }">
-            {{ formatSize(row.size) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="modifiedAt" label="修改时间" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.modifiedAt) }}
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+      <n-data-table
+        :columns="columns"
+        :data="files"
+        :loading="loading"
+        :row-key="(row: any) => row.id"
+      />
+    </n-card>
 
-    <el-dialog v-model="showIndexDialog" title="索引文件" width="500px">
-      <el-form :model="indexForm" label-width="100px">
-        <el-form-item label="文件路径">
-          <el-input
-            v-model="indexForm.path"
+    <!-- 索引文件对话框 -->
+    <n-modal
+      v-model:show="showIndexModal"
+      preset="card"
+      title="索引文件"
+      :style="{ width: '500px' }"
+      :bordered="false"
+    >
+      <n-form :model="indexForm" label-placement="left" label-width="100px">
+        <n-form-item label="文件路径">
+          <n-input
+            v-model:value="indexForm.path"
             placeholder="/path/to/directory"
           />
-        </el-form-item>
-        <el-form-item label="递归索引">
-          <el-switch v-model="indexForm.recursive" />
-        </el-form-item>
-      </el-form>
+        </n-form-item>
+        <n-form-item label="递归索引">
+          <n-switch v-model:value="indexForm.recursive" />
+        </n-form-item>
+      </n-form>
       <template #footer>
-        <el-button @click="showIndexDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleIndex">
-          开始索引
-        </el-button>
+        <n-space justify="end">
+          <n-button @click="showIndexModal = false">取消</n-button>
+          <n-button type="primary" @click="handleIndex">
+            开始索引
+          </n-button>
+        </n-space>
       </template>
-    </el-dialog>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { storageApi } from '@/api/storage';
-import { ElMessage } from 'element-plus';
+import { message } from '@/utils/message';
+import type { DataTableColumns } from 'naive-ui';
+import { FolderOpenOutline } from '@vicons/ionicons5';
 
 const files = ref<any[]>([]);
 const loading = ref(false);
-const showIndexDialog = ref(false);
+const showIndexModal = ref(false);
 
 const indexForm = ref({
   path: '',
   recursive: true,
 });
+
+// 表格列配置
+const columns = computed<DataTableColumns<any>>(() => [
+  {
+    title: '文件名',
+    key: 'name',
+  },
+  {
+    title: '类型',
+    key: 'type',
+    width: 100,
+  },
+  {
+    title: '大小',
+    key: 'size',
+    width: 100,
+    render: (row) => formatSize(row.size),
+  },
+  {
+    title: '修改时间',
+    key: 'modifiedAt',
+    width: 180,
+    render: (row) => formatDate(row.modifiedAt),
+  },
+]);
 
 async function loadFiles() {
   loading.value = true;
@@ -77,19 +107,19 @@ async function loadFiles() {
 
 async function handleIndex() {
   if (!indexForm.value.path) {
-    ElMessage.warning('请输入文件路径');
+    message.warning('请输入文件路径');
     return;
   }
 
   try {
     const response = await storageApi.indexPath(indexForm.value);
     if (response.success) {
-      ElMessage.success(`已索引 ${response.data?.indexed || 0} 个文件`);
-      showIndexDialog.value = false;
+      message.success(`已索引 ${response.data?.indexed || 0} 个文件`);
+      showIndexModal.value = false;
       loadFiles();
     }
-  } catch (error) {
-    ElMessage.error('索引失败');
+  } catch {
+    message.error('索引失败');
   }
 }
 

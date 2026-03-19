@@ -1,96 +1,138 @@
 <template>
   <div class="knowledge-view">
-    <el-card>
+    <n-card>
       <template #header>
         <div class="header">
-          <el-input
-            v-model="searchInput"
+          <n-input
+            v-model:value="searchInput"
             placeholder="输入关键词，用逗号分隔"
             clearable
             style="width: 400px;"
             @keyup.enter="handleSearch"
           >
-            <template #append>
-              <el-button @click="handleSearch">
-                <el-icon><Search /></el-icon>
-              </el-button>
+            <template #suffix>
+              <n-button text @click="handleSearch">
+                <template #icon>
+                  <n-icon :component="SearchOutline" />
+                </template>
+              </n-button>
             </template>
-          </el-input>
-          <el-button @click="showReindexConfirm = true">
-            <el-icon><Refresh /></el-icon>
+          </n-input>
+          <n-button @click="showReindexConfirm = true">
+            <template #icon>
+              <n-icon :component="RefreshOutline" />
+            </template>
             重新索引
-          </el-button>
+          </n-button>
         </div>
       </template>
 
-      <el-table :data="documents" v-loading="loading">
-        <el-table-column prop="title" label="标题" />
-        <el-table-column label="类型" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getTypeColor(row.metadata.type)">
-              {{ getTypeLabel(row.metadata.type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="来源" width="200">
-          <template #default="{ row }">
-            {{ getSourceLabel(row) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="updatedAt" label="更新时间" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.updatedAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="100">
-          <template #default="{ row }">
-            <el-popconfirm
-              title="确定删除此文档吗？"
-              @confirm="deleteDocument(row.id)"
-            >
-              <template #reference>
-                <el-button link type="danger">删除</el-button>
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-pagination
-        v-if="pagination.total > 0"
-        style="margin-top: 20px; justify-content: center;"
-        :current-page="pagination.page"
-        :page-size="pagination.pageSize"
-        :total="pagination.total"
-        layout="prev, pager, next, total"
-        @current-change="handlePageChange"
+      <n-data-table
+        :columns="columns"
+        :data="documents"
+        :loading="loading"
+        :row-key="(row: any) => row.id"
       />
-    </el-card>
 
-    <el-popconfirm
-      v-model="showReindexConfirm"
-      title="确定要重新索引所有文档吗？这可能需要一些时间。"
-      @confirm="handleReindex"
+      <n-pagination
+        v-if="pagination.total > 0"
+        style="margin-top: 20px; display: flex; justify-content: center;"
+        v-model:page="pagination.page"
+        :page-size="pagination.pageSize"
+        :item-count="pagination.total"
+        show-quick-jumper
+        @update:page="handlePageChange"
+      />
+    </n-card>
+
+    <!-- 删除确认对话框 -->
+    <n-modal
+      v-model:show="showDeleteDialog"
+      preset="dialog"
+      title="确认删除"
+      content="确定删除此文档吗？"
+      :positive-text="'确定'"
+      :negative-text="'取消'"
+      @positive-click="confirmDelete"
+    />
+
+    <!-- 重新索引确认对话框 -->
+    <n-modal
+      v-model:show="showReindexConfirm"
+      preset="dialog"
+      title="确认重新索引"
+      content="确定要重新索引所有文档吗？这可能需要一些时间。"
+      :positive-text="'确定'"
+      :negative-text="'取消'"
+      @positive-click="handleReindex"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, h, onMounted, computed } from 'vue';
 import { knowledgeApi } from '@/api/knowledge';
-import { ElMessage } from 'element-plus';
+import { message } from '@/utils/message';
 import type { Document } from '@/types';
+import { NButton, NTag, type DataTableColumns } from 'naive-ui';
+import { SearchOutline, RefreshOutline } from '@vicons/ionicons5';
 
 const documents = ref<Document[]>([]);
 const loading = ref(false);
 const searchInput = ref('');
 const showReindexConfirm = ref(false);
+const showDeleteDialog = ref(false);
+const deleteTargetId = ref<string | null>(null);
 
 const pagination = ref({
   page: 1,
   pageSize: 20,
   total: 0,
 });
+
+// 表格列配置
+const columns = computed<DataTableColumns<any>>(() => [
+  {
+    title: '标题',
+    key: 'title',
+  },
+  {
+    title: '类型',
+    key: 'type',
+    width: 100,
+    render: (row) => {
+      return h(NTag, {
+        type: getTypeTagType(row.metadata.type),
+        size: 'small',
+        bordered: false,
+      }, { default: () => getTypeLabel(row.metadata.type) });
+    },
+  },
+  {
+    title: '来源',
+    key: 'source',
+    width: 200,
+    render: (row) => getSourceLabel(row),
+  },
+  {
+    title: '更新时间',
+    key: 'updatedAt',
+    width: 180,
+    render: (row) => formatDate(row.updatedAt),
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 100,
+    render: (row) => {
+      return h(NButton, {
+        text: true,
+        type: 'error',
+        onClick: () => showDeleteConfirmDialog(row.id),
+      }, { default: () => '删除' });
+    },
+  },
+]);
 
 async function loadDocuments(page = 1) {
   loading.value = true;
@@ -129,19 +171,27 @@ async function handleReindex() {
   try {
     const response = await knowledgeApi.reindex();
     if (response.success) {
-      ElMessage.success('重新索引已启动');
+      message.success('重新索引已启动');
       loadDocuments();
     }
-  } catch (error) {
-    ElMessage.error('重新索引失败');
+  } catch {
+    message.error('重新索引失败');
   }
 }
 
-async function deleteDocument(id: string) {
-  const response = await knowledgeApi.delete(id);
-  if (response.success) {
-    ElMessage.success('文档已删除');
-    loadDocuments(pagination.value.page);
+function showDeleteConfirmDialog(id: string) {
+  deleteTargetId.value = id;
+  showDeleteDialog.value = true;
+}
+
+async function confirmDelete() {
+  if (deleteTargetId.value) {
+    const response = await knowledgeApi.delete(deleteTargetId.value);
+    if (response.success) {
+      message.success('文档已删除');
+      loadDocuments(pagination.value.page);
+    }
+    deleteTargetId.value = null;
   }
 }
 
@@ -149,14 +199,14 @@ function handlePageChange(page: number) {
   loadDocuments(page);
 }
 
-function getTypeColor(type: string) {
-  const colors: Record<string, any> = {
+function getTypeTagType(type: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error' {
+  const types: Record<string, 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'> = {
     note: 'primary',
     webpage: 'success',
     file: 'warning',
     code: 'info',
   };
-  return colors[type] || '';
+  return types[type] || 'default';
 }
 
 function getTypeLabel(type: string) {

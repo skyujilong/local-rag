@@ -1,69 +1,46 @@
 <template>
   <div class="crawler-view">
-    <el-row :gutter="20">
-      <el-col :span="16">
-        <el-card header="新建爬取任务">
-          <el-form :model="crawlerForm" label-width="120px">
-            <el-form-item label="目标 URL">
-              <el-input
-                v-model="crawlerForm.url"
+    <n-grid :cols="16" :x-gap="20">
+      <n-grid-item :span="10">
+        <n-card title="新建爬取任务">
+          <n-form :model="crawlerForm" label-placement="left" label-width="120px">
+            <n-form-item label="目标 URL">
+              <n-input
+                v-model:value="crawlerForm.url"
                 placeholder="https://example.com"
               />
-            </el-form-item>
-            <el-form-item label="等待登录">
-              <el-switch v-model="crawlerForm.waitForAuth" />
+            </n-form-item>
+            <n-form-item label="等待登录">
+              <n-switch v-model:value="crawlerForm.waitForAuth" />
               <span class="hint">开启后会打开浏览器等待扫码登录</span>
-            </el-form-item>
-            <el-form-item>
-              <el-button
+            </n-form-item>
+            <n-form-item>
+              <n-button
                 type="primary"
                 @click="startCrawler"
                 :loading="crawlerStore.loading"
               >
-                <el-icon><VideoPlay /></el-icon>
+                <template #icon>
+                  <n-icon :component="PlayOutline" />
+                </template>
                 开始爬取
-              </el-button>
-            </el-form-item>
-          </el-form>
-        </el-card>
+              </n-button>
+            </n-form-item>
+          </n-form>
+        </n-card>
 
-        <el-card header="任务列表" style="margin-top: 20px;">
-          <el-table :data="crawlerStore.tasks">
-            <el-table-column prop="url" label="URL" />
-            <el-table-column label="状态" width="120">
-              <template #default="{ row }">
-                <el-tag :type="getStatusType(row.status)">
-                  {{ getStatusLabel(row.status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="认证状态" width="120">
-              <template #default="{ row }">
-                <el-tag v-if="row.authStatus" :type="getAuthStatusType(row.authStatus)">
-                  {{ getAuthStatusLabel(row.authStatus) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="documentCount" label="文档数" width="80" />
-            <el-table-column label="操作" width="100">
-              <template #default="{ row }">
-                <el-button
-                  v-if="row.status === 'running' || row.status === 'waiting_auth'"
-                  link
-                  type="warning"
-                  @click="crawlerStore.cancelTask(row.id)"
-                >
-                  取消
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
+        <n-card title="任务列表" style="margin-top: 20px;">
+          <n-data-table
+            :columns="taskColumns"
+            :data="crawlerStore.tasks"
+            :row-key="(row: any) => row.id"
+          />
+        </n-card>
+      </n-grid-item>
 
-      <el-col :span="8">
-        <el-card header="已保存的会话">
-          <el-empty v-if="crawlerStore.sessions.length === 0" description="暂无会话" />
+      <n-grid-item :span="6">
+        <n-card title="已保存的会话">
+          <n-empty v-if="crawlerStore.sessions.length === 0" description="暂无会话" />
           <div v-else class="sessions">
             <div
               v-for="session in crawlerStore.sessions"
@@ -71,59 +48,56 @@
               class="session-item"
             >
               <div class="session-info">
-                <el-icon><Globe /></el-icon>
+                <n-icon :component="GlobeOutline" />
                 <span>{{ session.domain }}</span>
               </div>
               <div class="session-time">
                 {{ formatDate(session.updatedAt) }}
               </div>
-              <el-button
-                link
-                type="danger"
+              <n-button
+                text
+                type="error"
                 size="small"
                 @click="handleDeleteSession(session.domain)"
               >
                 删除
-              </el-button>
+              </n-button>
             </div>
           </div>
-        </el-card>
+        </n-card>
 
-        <el-card header="登录状态" style="margin-top: 20px;">
-          <el-alert
+        <n-card title="登录状态" style="margin-top: 20px;">
+          <n-alert
             v-if="currentTask?.authStatus === 'waiting_qrcode'"
-            title="等待扫码登录"
             type="info"
-            description="请在打开的浏览器窗口中扫描二维码登录"
-            :closable="false"
-            show-icon
-          />
-          <el-alert
+            title="等待扫码登录"
+          >
+            请在打开的浏览器窗口中扫描二维码登录
+          </n-alert>
+          <n-alert
             v-else-if="currentTask?.authStatus === 'success'"
-            title="登录成功"
             type="success"
-            :closable="false"
-            show-icon
+            title="登录成功"
           />
-          <el-alert
+          <n-alert
             v-else-if="currentTask?.authStatus === 'failed'"
-            title="登录失败"
             type="error"
-            :closable="false"
-            show-icon
+            title="登录失败"
           />
-          <el-empty v-else description="无活动登录" />
-        </el-card>
-      </el-col>
-    </el-row>
+          <n-empty v-else description="无活动登录" />
+        </n-card>
+      </n-grid-item>
+    </n-grid>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, h, computed, onMounted, onUnmounted } from 'vue';
 import { useCrawlerStore } from '@/stores';
-import { ElMessage } from 'element-plus';
-import type { CrawlerTask } from '@/types';
+import { message } from '@/utils/message';
+// import type { CrawlerTask } from '@/types';
+import { NButton, NTag, NIcon, type DataTableColumns } from 'naive-ui';
+import { PlayOutline, GlobeOutline } from '@vicons/ionicons5';
 
 const crawlerStore = useCrawlerStore();
 
@@ -138,18 +112,71 @@ const currentTask = computed(() => {
   );
 });
 
+// 任务表格列配置
+const taskColumns = computed<DataTableColumns<any>>(() => [
+  {
+    title: 'URL',
+    key: 'url',
+  },
+  {
+    title: '状态',
+    key: 'status',
+    width: 120,
+    render: (row) => {
+      return h(NTag, {
+        type: getStatusTagType(row.status),
+        size: 'small',
+        bordered: false,
+      }, { default: () => getStatusLabel(row.status) });
+    },
+  },
+  {
+    title: '认证状态',
+    key: 'authStatus',
+    width: 120,
+    render: (row) => {
+      if (!row.authStatus) return '-';
+      return h(NTag, {
+        type: getAuthStatusTagType(row.authStatus),
+        size: 'small',
+        bordered: false,
+      }, { default: () => getAuthStatusLabel(row.authStatus) });
+    },
+  },
+  {
+    title: '文档数',
+    key: 'documentCount',
+    width: 80,
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 100,
+    render: (row) => {
+      if (row.status === 'running' || row.status === 'waiting_auth') {
+        return h(NButton, {
+          text: true,
+          type: 'warning',
+          onClick: () => crawlerStore.cancelTask(row.id),
+        }, { default: () => '取消' });
+      }
+      return null;
+    },
+  },
+]);
+
 async function startCrawler() {
   if (!crawlerForm.value.url) {
-    ElMessage.warning('请输入目标 URL');
+    message.warning('请输入目标 URL');
     return;
   }
 
   try {
     await crawlerStore.startCrawler(crawlerForm.value);
-    ElMessage.success('爬虫任务已创建');
+    message.success('爬虫任务已创建');
     crawlerForm.value.url = '';
-  } catch (error) {
-    ElMessage.error('启动爬虫失败');
+  } catch {
+    message.error('启动爬虫失败');
   }
 }
 
@@ -157,15 +184,15 @@ function handleDeleteSession(domain: string) {
   crawlerStore.deleteSession(domain);
 }
 
-function getStatusType(status: string) {
-  const types: Record<string, any> = {
+function getStatusTagType(status: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error' {
+  const types: Record<string, 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'> = {
     pending: 'info',
     running: 'warning',
     waiting_auth: 'warning',
     completed: 'success',
-    failed: 'danger',
+    failed: 'error',
   };
-  return types[status] || '';
+  return types[status] || 'default';
 }
 
 function getStatusLabel(status: string) {
@@ -179,14 +206,14 @@ function getStatusLabel(status: string) {
   return labels[status] || status;
 }
 
-function getAuthStatusType(status: string) {
-  const types: Record<string, any> = {
+function getAuthStatusTagType(status: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error' {
+  const types: Record<string, 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'> = {
     detected: 'warning',
     waiting_qrcode: 'info',
     success: 'success',
-    failed: 'danger',
+    failed: 'error',
   };
-  return types[status] || '';
+  return types[status] || 'default';
 }
 
 function getAuthStatusLabel(status: string) {

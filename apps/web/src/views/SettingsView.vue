@@ -1,59 +1,54 @@
 <template>
   <div class="settings-view">
-    <el-card header="Ollama 配置">
-      <el-form label-width="150px">
-        <el-form-item label="服务地址">
-          <el-input v-model="settings.ollamaBaseUrl" placeholder="http://localhost:11434" />
-        </el-form-item>
-        <el-form-item label="嵌入模型">
-          <el-input v-model="settings.ollamaModel" placeholder="nomic-embed-text" />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="saveSettings">保存设置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+    <n-card title="Ollama 配置">
+      <n-form label-width="150px" label-placement="left">
+        <n-form-item label="服务地址">
+          <n-input
+            v-model:value="settings.ollamaBaseUrl"
+            placeholder="http://localhost:11434"
+          />
+        </n-form-item>
+        <n-form-item label="嵌入模型">
+          <n-input
+            v-model:value="settings.ollamaModel"
+            placeholder="nomic-embed-text"
+          />
+        </n-form-item>
+        <n-form-item>
+          <n-button type="primary" @click="saveSettings">保存设置</n-button>
+        </n-form-item>
+      </n-form>
+    </n-card>
 
-    <el-card header="忽略规则" style="margin-top: 20px;">
-      <el-form label-width="150px">
-        <el-form-item label="自定义忽略">
-          <el-select
-            v-model="ignoreCustom"
+    <n-card title="忽略规则" style="margin-top: 20px;">
+      <n-form label-width="150px" label-placement="left">
+        <n-form-item label="自定义忽略">
+          <n-select
+            v-model:value="ignoreCustom"
             multiple
             filterable
-            allow-create
+            tag
             placeholder="添加忽略模式"
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="pattern in ignoreCustom"
-              :key="pattern"
-              :label="pattern"
-              :value="pattern"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-alert
-            title="提示"
-            type="info"
-            description="支持通配符，例如: **/*.log, node_modules/**"
-            :closable="false"
-            show-icon
+            :options="ignoreOptions"
           />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="saveIgnoreRules">保存规则</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+        </n-form-item>
+        <n-form-item>
+          <n-alert type="info" :bordered="false">
+            支持通配符，例如: **/*.log, node_modules/**
+          </n-alert>
+        </n-form-item>
+        <n-form-item>
+          <n-button type="primary" @click="saveIgnoreRules">保存规则</n-button>
+        </n-form-item>
+      </n-form>
+    </n-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { storageApi } from '@/api/storage';
-import { ElMessage } from 'element-plus';
+import { message } from '@/utils/message';
 
 const settings = ref({
   ollamaBaseUrl: 'http://localhost:11434',
@@ -61,6 +56,14 @@ const settings = ref({
 });
 
 const ignoreCustom = ref<string[]>([]);
+
+// 计算选择器选项
+const ignoreOptions = computed(() => {
+  return ignoreCustom.value.map(pattern => ({
+    label: pattern,
+    value: pattern,
+  }));
+});
 
 async function loadIgnoreRules() {
   try {
@@ -75,7 +78,7 @@ async function loadIgnoreRules() {
 
 function saveSettings() {
   localStorage.setItem('settings', JSON.stringify(settings.value));
-  ElMessage.success('设置已保存');
+  message.success('设置已保存');
 }
 
 async function saveIgnoreRules() {
@@ -84,10 +87,10 @@ async function saveIgnoreRules() {
       custom: ignoreCustom.value,
     });
     if (response.success) {
-      ElMessage.success('忽略规则已保存');
+      message.success('忽略规则已保存');
     }
   } catch (error) {
-    ElMessage.error('保存失败');
+    message.error('保存失败');
   }
 }
 

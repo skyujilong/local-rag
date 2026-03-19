@@ -1,62 +1,68 @@
 <template>
   <div class="home-view">
-    <el-row :gutter="20">
-      <el-col :span="6">
-        <el-card class="stat-card">
-          <el-statistic title="笔记数量" :value="stats.notes" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card">
-          <el-statistic title="文档数量" :value="stats.documents" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card">
-          <el-statistic title="已索引文件" :value="stats.files" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card">
-          <el-statistic title="活跃任务" :value="stats.tasks" />
-        </el-card>
-      </el-col>
-    </el-row>
+    <n-grid :cols="4" :x-gap="20">
+      <n-grid-item>
+        <n-card class="stat-card">
+          <n-statistic label="笔记数量" :value="stats.notes" />
+        </n-card>
+      </n-grid-item>
+      <n-grid-item>
+        <n-card class="stat-card">
+          <n-statistic label="文档数量" :value="stats.documents" />
+        </n-card>
+      </n-grid-item>
+      <n-grid-item>
+        <n-card class="stat-card">
+          <n-statistic label="已索引文件" :value="stats.files" />
+        </n-card>
+      </n-grid-item>
+      <n-grid-item>
+        <n-card class="stat-card">
+          <n-statistic label="活跃任务" :value="stats.tasks" />
+        </n-card>
+      </n-grid-item>
+    </n-grid>
 
-    <el-row :gutter="20" style="margin-top: 20px;">
-      <el-col :span="12">
-        <el-card header="快速操作">
+    <n-grid :cols="2" :x-gap="20" style="margin-top: 20px;">
+      <n-grid-item>
+        <n-card title="快速操作">
           <div class="quick-actions">
-            <el-button type="primary" @click="$router.push('/notes')">
-              <el-icon><Edit /></el-icon>
+            <n-button type="primary" block @click="$router.push('/notes')">
+              <template #icon>
+                <n-icon :component="PencilOutline" />
+              </template>
               新建笔记
-            </el-button>
-            <el-button type="success" @click="$router.push('/crawler')">
-              <el-icon><Connection /></el-icon>
+            </n-button>
+            <n-button type="success" block @click="$router.push('/crawler')">
+              <template #icon>
+                <n-icon :component="CloudDownloadOutline" />
+              </template>
               启动爬虫
-            </el-button>
-            <el-button type="warning" @click="$router.push('/storage')">
-              <el-icon><FolderOpened /></el-icon>
+            </n-button>
+            <n-button type="warning" block @click="$router.push('/storage')">
+              <template #icon>
+                <n-icon :component="FolderOpenOutline" />
+              </template>
               索引文件
-            </el-button>
+            </n-button>
           </div>
-        </el-card>
-      </el-col>
+        </n-card>
+      </n-grid-item>
 
-      <el-col :span="12">
-        <el-card header="最近活动">
-          <el-timeline>
-            <el-timeline-item
+      <n-grid-item>
+        <n-card title="最近活动">
+          <n-timeline>
+            <n-timeline-item
               v-for="activity in recentActivities"
               :key="activity.id"
-              :timestamp="activity.timestamp"
+              :time="activity.timestamp"
             >
               {{ activity.content }}
-            </el-timeline-item>
-          </el-timeline>
-        </el-card>
-      </el-col>
-    </el-row>
+            </n-timeline-item>
+          </n-timeline>
+        </n-card>
+      </n-grid-item>
+    </n-grid>
   </div>
 </template>
 
@@ -65,7 +71,8 @@ import { ref, onMounted } from 'vue';
 import { notesApi } from '@/api/notes';
 import { knowledgeApi } from '@/api/knowledge';
 import { crawlerApi } from '@/api/crawler';
-import { storageApi } from '@/api/storage';
+// import { storageApi } from '@/api/storage';
+import { PencilOutline, CloudDownloadOutline, FolderOpenOutline } from '@vicons/ionicons5';
 
 const stats = ref({
   notes: 0,
@@ -123,8 +130,7 @@ onMounted(() => {
   gap: 12px;
 }
 
-.quick-actions .el-button {
-  width: 100%;
+.quick-actions .n-button {
   justify-content: flex-start;
 }
 </style>

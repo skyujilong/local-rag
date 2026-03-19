@@ -1,140 +1,124 @@
 <template>
   <div class="notes-view">
-    <el-card>
+    <n-card>
       <template #header>
         <div class="header">
-          <el-input
-            v-model="searchQuery"
+          <n-input
+            v-model:value="searchQuery"
             placeholder="搜索笔记..."
             clearable
             style="width: 300px;"
-            @input="handleSearch"
+            @update:value="handleSearch"
           >
             <template #prefix>
-              <el-icon><Search /></el-icon>
+              <n-icon :component="SearchOutline" />
             </template>
-          </el-input>
-          <el-button type="primary" @click="showCreateDialog = true">
-            <el-icon><Plus /></el-icon>
+          </n-input>
+          <n-button type="primary" @click="$router.push('/notes/new/edit')">
+            <template #icon>
+              <n-icon :component="AddOutline" />
+            </template>
             新建笔记
-          </el-button>
+          </n-button>
         </div>
       </template>
 
-      <el-table :data="notesStore.notes" v-loading="notesStore.loading">
-        <el-table-column prop="title" label="标题" />
-        <el-table-column label="标签" width="200">
-          <template #default="{ row }">
-            <el-tag
-              v-for="tag in row.tags"
-              :key="tag"
-              size="small"
-              style="margin-right: 4px;"
-            >
-              {{ tag }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="updatedAt" label="更新时间" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.updatedAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="editNote(row)">
-              编辑
-            </el-button>
-            <el-popconfirm
-              title="确定删除此笔记吗？"
-              @confirm="notesStore.deleteNote(row.id)"
-            >
-              <template #reference>
-                <el-button link type="danger">删除</el-button>
-              </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-pagination
-        v-if="notesStore.pagination.total > 0"
-        style="margin-top: 20px; justify-content: center;"
-        :current-page="notesStore.pagination.page"
-        :page-size="notesStore.pagination.pageSize"
-        :total="notesStore.pagination.total"
-        layout="prev, pager, next, total"
-        @current-change="handlePageChange"
+      <n-data-table
+        :columns="columns"
+        :data="notesStore.notes"
+        :loading="notesStore.loading"
+        :row-key="(row: any) => row.id"
+        :pagination="paginationConfig"
       />
-    </el-card>
 
-    <!-- 创建/编辑笔记对话框 -->
-    <el-dialog
-      v-model="showCreateDialog"
-      :title="editingNote ? '编辑笔记' : '新建笔记'"
-      width="800px"
-    >
-      <el-form :model="noteForm" label-width="80px">
-        <el-form-item label="标题">
-          <el-input v-model="noteForm.title" placeholder="输入笔记标题" />
-        </el-form-item>
-        <el-form-item label="标签">
-          <el-select
-            v-model="noteForm.tags"
-            multiple
-            filterable
-            allow-create
-            placeholder="选择或创建标签"
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="tag in allTags"
-              :key="tag"
-              :label="tag"
-              :value="tag"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="内容">
-          <el-input
-            v-model="noteForm.content"
-            type="textarea"
-            :rows="15"
-            placeholder="支持 Markdown 格式"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveNote">保存</el-button>
-      </template>
-    </el-dialog>
+      <n-pagination
+        v-if="notesStore.pagination.total > 0"
+        style="margin-top: 20px; display: flex; justify-content: center;"
+        v-model:page="notesStore.pagination.page"
+        :page-size="notesStore.pagination.pageSize"
+        :item-count="notesStore.pagination.total"
+        show-quick-jumper
+        @update:page="handlePageChange"
+      />
+    </n-card>
+
+    <!-- 删除确认对话框 -->
+    <n-modal
+      v-model:show="showDeleteConfirm"
+      preset="dialog"
+      title="确认删除"
+      content="确定删除此笔记吗？"
+      :positive-text="'确定'"
+      :negative-text="'取消'"
+      @positive-click="confirmDelete"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, h, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { useNotesStore } from '@/stores';
-import type { Note } from '@/types';
+import { NButton, NIcon, NTag, type DataTableColumns } from 'naive-ui';
+import { SearchOutline, AddOutline } from '@vicons/ionicons5';
 
+const router = useRouter();
 const notesStore = useNotesStore();
+
 const searchQuery = ref('');
-const showCreateDialog = ref(false);
-const editingNote = ref<Note | null>(null);
+const deleteTargetId = ref<string | null>(null);
+const showDeleteConfirm = ref(false);
 
-const noteForm = ref({
-  title: '',
-  content: '',
-  tags: [] as string[],
-});
+// 表格列配置
+const columns = computed<DataTableColumns<any>>(() => [
+  {
+    title: '标题',
+    key: 'title',
+  },
+  {
+    title: '标签',
+    key: 'tags',
+    width: 200,
+    render: (row) => {
+      if (!row.tags || row.tags.length === 0) return '-';
+      return h('div', { style: { display: 'flex', gap: '4px' } },
+        row.tags.map((tag: string) =>
+          h(NTag, { size: 'small', bordered: false }, { default: () => tag })
+        )
+      );
+    },
+  },
+  {
+    title: '更新时间',
+    key: 'updatedAt',
+    width: 180,
+    render: (row) => formatDate(row.updatedAt),
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 150,
+    render: (row) => {
+      return h('div', { style: { display: 'flex', gap: '8px' } }, [
+        h(NButton, {
+          text: true,
+          type: 'primary',
+          onClick: () => router.push(`/notes/${row.id}/edit`),
+        }, { default: () => '编辑' }),
+        h(NButton, {
+          text: true,
+          type: 'error',
+          onClick: () => showDeleteDialog(row.id),
+        }, { default: () => '删除' }),
+      ]);
+    },
+  },
+]);
 
-const allTags = computed(() => {
-  const tags = new Set<string>();
-  notesStore.notes.forEach(note => {
-    note.tags.forEach(tag => tags.add(tag));
-  });
-  return Array.from(tags);
-});
+// 内置分页配置（禁用，使用外部分页）
+const paginationConfig = computed(() => ({
+  pageSize: notesStore.pagination.pageSize,
+}));
 
 function handleSearch() {
   if (searchQuery.value) {
@@ -148,31 +132,16 @@ function handlePageChange(page: number) {
   notesStore.loadNotes({ page });
 }
 
-function editNote(note: Note) {
-  editingNote.value = note;
-  noteForm.value = {
-    title: note.title,
-    content: note.content,
-    tags: [...note.tags],
-  };
-  showCreateDialog.value = true;
+function showDeleteDialog(id: string) {
+  deleteTargetId.value = id;
+  showDeleteConfirm.value = true;
 }
 
-async function saveNote() {
-  if (!noteForm.value.title) {
-    return;
+function confirmDelete() {
+  if (deleteTargetId.value) {
+    notesStore.deleteNote(deleteTargetId.value);
+    deleteTargetId.value = null;
   }
-
-  if (editingNote.value) {
-    await notesStore.updateNote(editingNote.value.id, noteForm.value);
-  } else {
-    await notesStore.createNote(noteForm.value);
-  }
-
-  showCreateDialog.value = false;
-  editingNote.value = null;
-  noteForm.value = { title: '', content: '', tags: [] };
-  notesStore.loadNotes();
 }
 
 function formatDate(dateStr: string) {
