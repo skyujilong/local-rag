@@ -230,15 +230,21 @@ const currentTask = computed(() => {
   );
 });
 
-// 监听当前任务变化，确保预览更新
+// 监听当前任务变化（深度监听整个对象）
 watch(
-  () => currentTask.value?.previewMarkdown,
-  (newMarkdown) => {
-    if (newMarkdown && import.meta.env.DEV) {
-      console.log('[CrawlerView] 预览 Markdown 已更新:', newMarkdown.length, '字符');
+  currentTask,
+  (newTask, oldTask) => {
+    if (import.meta.env.DEV) {
+      console.log('[CrawlerView] 当前任务变化:', {
+        oldId: oldTask?.id,
+        newId: newTask?.id,
+        newStatus: newTask?.status,
+        hasPreviewMarkdown: !!newTask?.previewMarkdown,
+        previewMarkdownLength: newTask?.previewMarkdown?.length || 0,
+      });
     }
   },
-  { immediate: true }
+  { deep: true, immediate: true }
 );
 
 const renderedMarkdown = computed(() => {

@@ -182,6 +182,16 @@ export const useCrawlerStore = defineStore('crawler', () => {
         const index = tasks.value.findIndex(t => t.id === message.data.id);
 
         if (index !== -1) {
+          // 先获取旧任务用于调试
+          const oldTask = tasks.value[index];
+          if (isDev) {
+            console.log('[WebSocket] 更新前任务状态:', {
+              id: oldTask.id,
+              status: oldTask.status,
+              hadPreviewMarkdown: !!oldTask.previewMarkdown,
+            });
+          }
+
           // 使用 Vue 3 的响应式 API 确保更新
           const updatedTask = {
             ...tasks.value[index],
@@ -195,10 +205,15 @@ export const useCrawlerStore = defineStore('crawler', () => {
           // 使用 splice 触发响应式更新
           tasks.value.splice(index, 1, updatedTask);
 
+          // 验证更新是否成功
           if (isDev) {
-            console.log('[WebSocket] 任务已更新:', updatedTask.id, updatedTask.status, {
-              previewMarkdownLength: updatedTask.previewMarkdown?.length,
-              progress: updatedTask.progress,
+            const verifyTask = tasks.value[index];
+            console.log('[WebSocket] 更新后任务状态:', {
+              id: verifyTask.id,
+              status: verifyTask.status,
+              hasPreviewMarkdown: !!verifyTask.previewMarkdown,
+              previewMarkdownLength: verifyTask.previewMarkdown?.length || 0,
+              progress: verifyTask.progress,
             });
           }
         } else {
