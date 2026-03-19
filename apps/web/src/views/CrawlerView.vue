@@ -75,7 +75,7 @@
         </n-card>
 
         <!-- 内容确认面板 -->
-        <n-card v-if="currentTask?.status === 'waiting_confirm'" title="确认爬取内容" style="margin-top: 20px;">
+        <n-card v-if="currentTask?.status === 'waiting_confirm'" title="确认爬取内容" style="margin-top: 20px;" :key="currentTask.id + '-' + currentTask.lastUpdatedAt">
           <n-alert type="success" style="margin-bottom: 16px;">
             已提取内容，请确认是否符合预期。确认后将保存为草稿。
           </n-alert>
