@@ -37,7 +37,7 @@ const URL_CONFIG = {
  */
 function isPrivateIP(hostname: string): boolean {
   // 移除端口号
-  const hostWithoutPort = hostname.split(':')[0];
+  const hostWithoutPort = hostname.split(':')[0] || hostname;
 
   // 检查是否匹配私有 IP 模式
   for (const pattern of URL_CONFIG.PRIVATE_IP_PATTERNS) {

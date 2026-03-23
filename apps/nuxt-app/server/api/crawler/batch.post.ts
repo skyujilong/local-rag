@@ -257,19 +257,19 @@ async function executeBatchCrawl(
           resultItem.crawledAt = new Date()
 
           logger.info(`页面爬取成功`, { url, title, resultIdx })
-        } catch (error: any) {
+        } catch (error: unknown) {
           // 区分错误类型并记录
-          const errorType = error?.errorType || CrawlErrorType.UNKNOWN
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorType = (error as any)?.errorType || CrawlErrorType.UNKNOWN
+          const errorMsg: string = error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error))
 
           resultItem.status = 'failed'
-          resultItem.error = errorMessage
+          resultItem.error = errorMsg
           (resultItem as any).errorType = errorType
 
           logger.warn(`页面爬取失败，跳过`, {
             url,
             errorType,
-            errorMessage,
+            errorMessage: errorMsg,
             willRetry: false,
           })
         }
@@ -332,7 +332,7 @@ async function executeBatchCrawl(
     // 清理任务资源（延迟清理，确保消息已发送）
     setTimeout(() => cleanupTask(taskId), 1000)
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = error instanceof Error ? error.message : `${error}`
     logger.error(`批量爬取任务 ${taskId} 执行失败`, error as Error)
 
     updateTaskProgress(task, {

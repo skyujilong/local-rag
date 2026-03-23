@@ -40,7 +40,7 @@ export async function extractLinksByXPath(
             links.push(validationResult.sanitizedUrl);
           } else {
             invalidLinks.push({ url: href, error: validationResult.error || '无效的 URL' });
-            logger.debug('跳过无效链接', { url: href, error: validationResult.error });
+            logger.debug('跳过无效链接', { url: href, reason: validationResult.error || '无效的 URL' });
           }
         }
       } catch (error) {
