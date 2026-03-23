@@ -74,7 +74,11 @@ export type CrawlerTaskStatus =
   | 'ready_crawl'
   | 'waiting_confirm'
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'browser_ready';  // 新增：浏览器已打开，等待用户操作
+
+// 爬虫任务类型
+export type CrawlerTaskType = 'single' | 'batch';
 
 // 爬虫任务进度信息
 export interface CrawlerTaskProgress {
@@ -85,10 +89,21 @@ export interface CrawlerTaskProgress {
   stepDetails?: string;          // 步骤详细信息
 }
 
+// 批量爬取结果项
+export interface BatchCrawlResult {
+  url: string;
+  title?: string;
+  markdown?: string;
+  status: 'pending' | 'crawling' | 'success' | 'failed';
+  error?: string;
+  crawledAt?: Date;
+}
+
 export interface CrawlerTask {
   id: string;
   url: string;
   status: CrawlerTaskStatus;
+  type: CrawlerTaskType;         // 新增：任务类型
   waitForAuth: boolean;
   useXPath?: boolean;
   authStatus?: 'none' | 'detected' | 'waiting_qrcode' | 'success' | 'failed';
@@ -109,11 +124,26 @@ export interface CrawlerTask {
     sessionId?: string;
     [key: string]: any;
   };
+  
+  // 批量爬取相关字段
+  linksXPath?: string;           // 链接列表的 XPath
+  contentXPath?: string;         // 内容提取的 XPath（可选）
+  batchResults?: BatchCrawlResult[];  // 批量爬取结果列表
+  totalLinks?: number;           // 总链接数
+  completedLinks?: number;       // 已完成链接数
 }
 
 export interface XPathSubmitRequest {
   taskId: string;
   xpath: string;
+}
+
+// 批量爬取请求
+export interface BatchCrawlRequest {
+  taskId: string;
+  linksXPath: string;        // 链接列表的 XPath
+  contentXPath?: string;     // 内容提取的 XPath（可选）
+  maxLinks?: number;         // 最大链接数限制（默认 100）
 }
 
 export interface ContentPreview {

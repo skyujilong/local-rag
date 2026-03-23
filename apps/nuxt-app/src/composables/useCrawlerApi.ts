@@ -131,6 +131,25 @@ export function useCrawlerApi() {
     return $fetch<ApiResponse<{ pending: number; size: number }>>('/crawler/queue/status', { baseURL })
   }
 
+  /**
+   * 批量爬取
+   */
+  async function batchCrawl(params: {
+    taskId: string
+    linksXPath: string
+    contentXPath?: string
+    maxLinks?: number
+  }) {
+    return $fetch<ApiResponse<CrawlerTask>>('/crawler/batch', {
+      baseURL,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: params,
+    })
+  }
+
   return {
     getTasks,
     getTask,
@@ -142,5 +161,6 @@ export function useCrawlerApi() {
     getSessions,
     deleteSession,
     getQueueStatus,
+    batchCrawl,
   }
 }

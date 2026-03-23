@@ -49,11 +49,13 @@ function connect() {
     return
   }
 
-  // 优先使用运行时配置，否则使用默认端口 3001
+  // 优先使用运行时配置，否则使用当前端口
   const runtimeConfig = useRuntimeConfig()
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const runtimeWsUrl = typeof runtimeConfig.public.wsUrl === 'string' ? runtimeConfig.public.wsUrl : ''
-  const wsUrl = runtimeWsUrl || `${protocol}//${window.location.hostname}:3001/ws`
+  const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
+  // Nitro WebSocket 路由: /_ws/{route} 其中 route 是 server/routes/ 下的文件名
+  const wsUrl = runtimeWsUrl || `${protocol}//${window.location.hostname}:${port}/_ws/ws`
 
   logger.info('正在连接 WebSocket', { wsUrl })
 

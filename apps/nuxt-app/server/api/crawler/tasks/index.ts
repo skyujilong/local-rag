@@ -106,6 +106,7 @@ export default defineEventHandler(async (event) => {
         id: taskId,
         url,
         status: 'pending',
+        type: 'single',  // 默认为单页模式
         waitForAuth,
         useXPath,
         startedAt: new Date(),
@@ -241,6 +242,10 @@ async function runCrawlerTask(taskId: string) {
         broadcastTaskUpdate(task)
       },
       onLoginSuccess: (page) => {
+        // 这个回调会在两种情况下被调用：
+        // 1. 登录成功后（waitForAuth = true）
+        // 2. XPath 模式下页面加载完成（useXPath = true）
+        logger.info(`onLoginSuccess 回调被触发`, { taskId, useXPath: task.useXPath, waitForAuth: task.waitForAuth })
         if (task.useXPath) {
           const xpathStepNumber = task.waitForAuth ? CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_WITH_AUTH : CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_NO_AUTH
           updateTaskProgress(task, {
@@ -251,7 +256,9 @@ async function runCrawlerTask(taskId: string) {
             stepDetails: '请在界面中输入 XPath 表达式',
           })
           task.status = 'waiting_xpath'
+          logger.info(`任务状态已设置为 waiting_xpath`, { taskId, status: task.status })
           broadcastTaskUpdate(task)
+          logger.info(`任务状态已广播`, { taskId, status: task.status })
         }
       },
     })

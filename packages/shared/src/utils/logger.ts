@@ -192,9 +192,18 @@ const ecsFileFormat = winston.format.combine(
 );
 
 /**
- * 创建日志传输器
+ * 全局传输器缓存 - 每个 system 只创建一次传输器
  */
-function createTransports(system: LogSystem, module?: string): winston.transport[] {
+const transportsCache = new Map<LogSystem, winston.transport[]>();
+
+/**
+ * 创建或获取日志传输器（全局共享）
+ */
+function getTransports(system: LogSystem): winston.transport[] {
+  if (transportsCache.has(system)) {
+    return transportsCache.get(system)!;
+  }
+
   ensureLogsDir(system);
 
   const transports: winston.transport[] = [];
@@ -206,7 +215,7 @@ function createTransports(system: LogSystem, module?: string): winston.transport
     })
   );
 
-  // 错误日志文件（按天轮转）
+  // 错误日志文件（按天轮转）- 所有模块的错误都在这里
   transports.push(
     new DailyRotateFile({
       filename: path.join(LOGS_DIR, system, 'error-%DATE%.log'),
@@ -214,78 +223,59 @@ function createTransports(system: LogSystem, module?: string): winston.transport
       level: 'error',
       format: ecsFileFormat,
       maxSize: '20m',
-      maxFiles: '3d',
+      maxFiles: '7d',
       auditFile: path.join(LOGS_DIR, system, '.audit-error.json'),
     })
   );
 
-  // 组合日志文件（按天轮转）
+  // 组合日志文件（按天轮转）- 所有级别的日志（包括 error）
   transports.push(
     new DailyRotateFile({
       filename: path.join(LOGS_DIR, system, 'combined-%DATE%.log'),
       datePattern: 'YYYY-MM-DD',
       format: ecsFileFormat,
       maxSize: '20m',
-      maxFiles: '3d',
+      maxFiles: '7d',
       auditFile: path.join(LOGS_DIR, system, '.audit-combined.json'),
     })
   );
 
-  // 模块专用日志文件
-  if (module) {
-    const sanitizedModule = module.replace(/[^a-zA-Z0-9-_]/g, '_');
-    transports.push(
-      new DailyRotateFile({
-        filename: path.join(LOGS_DIR, system, `${sanitizedModule}-%DATE%.log`),
-        datePattern: 'YYYY-MM-DD',
-        format: ecsFileFormat,
-        maxSize: '20m',
-        maxFiles: '3d',
-        auditFile: path.join(LOGS_DIR, system, `.audit-${sanitizedModule}.json`),
-      })
-    );
-  }
+  // 缓存传输器
+  transportsCache.set(system, transports);
 
   return transports;
 }
 
 /**
- * Logger 类 - ECS 标准实现
+ * Logger 类 - 包装 winston logger，通过闭包保存 module 信息
  */
 export class Logger {
   private winstonLogger: winston.Logger;
-  private system: LogSystem;
   private module?: string;
-  private service: string;
-  private host: string;
-  private pid: number;
+  private extraMeta: Record<string, any>;
 
-  constructor(config: LoggerConfig) {
-    this.system = config.system;
-    this.module = config.module;
-    this.service = config.service?.name || `${DEFAULT_SERVICE_NAME}-${this.system}`;
-    this.host = os.hostname();
-    this.pid = process.pid;
+  constructor(winstonLogger: winston.Logger, module?: string, extraMeta: Record<string, any> = {}) {
+    this.winstonLogger = winstonLogger;
+    this.module = module;
+    this.extraMeta = extraMeta;
+  }
 
-    // 创建 winston logger
-    this.winstonLogger = winston.createLogger({
-      level: config.level || LogLevel.INFO,
-      defaultMeta: {
-        system: this.system,
-        module: this.module,
-        service: this.service,
-        host: this.host,
-        pid: this.pid,
-      },
-      transports: createTransports(this.system, this.module),
-    });
+  /**
+   * 合并元数据（自动注入 module）
+   */
+  private mergeMeta(meta?: LogMeta): LogMeta {
+    return {
+      ...this.extraMeta,
+      ...(this.module && { module: this.module }),
+      ...meta,
+    };
   }
 
   /**
    * 记录信息级别日志
    */
   info(message: string, meta?: LogMeta): void {
-    this.winstonLogger.info(message, meta);
+    this.winstonLogger.info(message, this.mergeMeta(meta));
   }
 
   /**
@@ -293,7 +283,6 @@ export class Logger {
    */
   error(message: string, error?: Error, meta?: LogMeta): void {
     const errorMeta: LogMeta = {
-      ...meta,
       ...(error && {
         error: {
           message: error.message,
@@ -302,21 +291,21 @@ export class Logger {
         } as ErrorInfo,
       }),
     };
-    this.winstonLogger.error(message, errorMeta);
+    this.winstonLogger.error(message, this.mergeMeta({ ...errorMeta, ...meta }));
   }
 
   /**
    * 记录警告级别日志
    */
   warn(message: string, meta?: LogMeta): void {
-    this.winstonLogger.warn(message, meta);
+    this.winstonLogger.warn(message, this.mergeMeta(meta));
   }
 
   /**
    * 记录调试级别日志
    */
   debug(message: string, meta?: LogMeta): void {
-    this.winstonLogger.debug(message, meta);
+    this.winstonLogger.debug(message, this.mergeMeta(meta));
   }
 
   /**
@@ -324,92 +313,92 @@ export class Logger {
    */
   http(message: string, httpInfo?: HttpInfo, meta?: LogMeta): void {
     const httpMeta: LogMeta = {
-      ...meta,
       ...(httpInfo && { http: httpInfo }),
+      ...meta,
     };
-    this.winstonLogger.info(message, httpMeta);
+    this.winstonLogger.info(message, this.mergeMeta(httpMeta));
   }
 
   /**
    * 创建带有追踪 ID 的子日志器
    */
   withTrace(traceId: string): Logger {
-    const child = new Logger({
-      system: this.system,
-      module: this.module,
-    });
-    child.winstonLogger.defaultMeta = {
-      ...this.winstonLogger.defaultMeta,
-      traceId,
-    };
-    return child;
+    return new Logger(this.winstonLogger, this.module, { ...this.extraMeta, traceId });
   }
 
   /**
    * 创建带有请求 ID 的子日志器
    */
   withRequest(requestId: string): Logger {
-    const child = new Logger({
-      system: this.system,
-      module: this.module,
-    });
-    child.winstonLogger.defaultMeta = {
-      ...this.winstonLogger.defaultMeta,
-      requestId,
-    };
-    return child;
+    return new Logger(this.winstonLogger, this.module, { ...this.extraMeta, requestId });
   }
 
   /**
-   * 创建子日志器（继承当前配置）
+   * 创建子日志器（添加子模块名称）
    */
-  child(module: string): Logger {
-    return new Logger({
-      system: this.system,
-      module: this.module ? `${this.module}:${module}` : module,
-    });
+  child(childModule: string): Logger {
+    const newModule = this.module ? `${this.module}:${childModule}` : childModule;
+    return new Logger(this.winstonLogger, newModule, this.extraMeta);
   }
 }
 
 /**
- * 日志器实例缓存
+ * winston logger 实例缓存 - 每个 system 一个单例
  */
-const loggerCache = new Map<string, Logger>();
+const winstonLoggerCache = new Map<LogSystem, winston.Logger>();
 
 /**
- * 生成缓存键
+ * 创建或获取 winston logger 实例
  */
-function getCacheKey(system: LogSystem, module?: string): string {
-  return module ? `${system}:${module}` : system;
+function getWinstonLogger(system: LogSystem, config?: Partial<LoggerConfig>): winston.Logger {
+
+  if (winstonLoggerCache.has(system)) {
+    return winstonLoggerCache.get(system)!;
+  }
+
+  const service = config?.service?.name || `${DEFAULT_SERVICE_NAME}-${system}`;
+  const host = os.hostname();
+  const pid = process.pid;
+
+  const winstonLogger = winston.createLogger({
+    level: config?.level || LogLevel.INFO,
+    defaultMeta: {
+      system,
+      service,
+      host,
+      pid,
+    },
+    transports: getTransports(system),
+  });
+
+  winstonLoggerCache.set(system, winstonLogger);
+  return winstonLogger;
 }
 
 /**
- * 创建日志器（工厂函数）
+ * 创建日志器（工厂函数 - 单例模式）
+ * 每个 system 只创建一个 winston logger，module 通过闭包保存
  */
 export function createLogger(
   system: LogSystem,
   module?: string,
   config?: Partial<LoggerConfig>
 ): Logger {
-  const cacheKey = getCacheKey(system, module);
 
-  if (!loggerCache.has(cacheKey)) {
-    loggerCache.set(
-      cacheKey,
-      new Logger({
-        system,
-        module,
-        ...config,
-      })
-    );
-  }
+  console.log('run createLogger', system, module, JSON.stringify({ config: config || {} }));
 
-  return loggerCache.get(cacheKey)!;
+  // 获取或创建 winston logger（每个 system 一个）
+  const winstonLogger = getWinstonLogger(system, config);
+
+  // 返回 Logger 实例，module 作为闭包变量保存
+  return new Logger(winstonLogger, module);
 }
 
 /**
  * 清除缓存的日志器实例
  */
 export function clearLoggerCache(): void {
-  loggerCache.clear();
+  winstonLoggerCache.clear();
+  transportsCache.clear();
 }
+

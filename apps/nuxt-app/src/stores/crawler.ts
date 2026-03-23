@@ -240,6 +240,27 @@ export const useCrawlerStore = defineStore('crawler', () => {
     }
   }
 
+  /**
+   * 批量爬取
+   */
+  async function batchCrawl(params: {
+    taskId: string;
+    linksXPath: string;
+    contentXPath?: string;
+    maxLinks?: number;
+  }) {
+    logger.info('批量爬取', params);
+    const crawlerApi = useCrawlerApi();
+    const response = await crawlerApi.batchCrawl(params);
+    if (response.success && response.data) {
+      const index = tasks.value.findIndex(t => t.id === params.taskId);
+      if (index !== -1) {
+        tasks.value[index] = response.data;
+      }
+    }
+    return response;
+  }
+
   return {
     tasks,
     sessions,
@@ -256,5 +277,6 @@ export const useCrawlerStore = defineStore('crawler', () => {
     connectWebSocket,
     registerHandlers,
     unregisterHandlers,
+    batchCrawl,
   };
 });

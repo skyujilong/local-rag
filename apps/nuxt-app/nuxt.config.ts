@@ -1,5 +1,8 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { defineNuxtConfig } from 'nuxt/config'
+import { resolve } from 'path'
+
+const sharedSrcPath = resolve(__dirname, '../../packages/shared/src')
 
 export default defineNuxtConfig({
   // 源代码目录
@@ -58,11 +61,23 @@ export default defineNuxtConfig({
         ignored: ['**/data/**', '**/logs/**', '**/dist/**'],
       },
     },
+    // 让 Vite 直接处理 @local-rag/shared 的源码，实现热重载
+    ssr: {
+      noExternal: ['@local-rag/shared'],
+    },
+    resolve: {
+      alias: {
+        '@local-rag/shared': sharedSrcPath,
+      },
+    },
+    optimizeDeps: {
+      exclude: ['@local-rag/shared'],
+    },
   },
 
   // 构建配置
   build: {
-    transpile: ['naive-ui', '@mozilla/readability', 'llamaindex'],
+    transpile: ['naive-ui', '@mozilla/readability', 'llamaindex', '@local-rag/shared'],
   },
 
   // 自动导入配置
