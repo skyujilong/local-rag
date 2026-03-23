@@ -142,14 +142,32 @@ export const useCrawlerStore = defineStore('crawler', () => {
    */
   async function startCrawler(data: {
     url: string;
-    waitForAuth?: boolean;
-    useXPath?: boolean;
+    taskType?: 'single' | 'batch';
+    contentXPath?: string;
+    linksXPath?: string;
+    maxLinks?: number;
   }) {
-    logger.info('启动爬虫', { url: data.url, waitForAuth: data.waitForAuth, useXPath: data.useXPath });
+    logger.info('启动爬虫', { url: data.url, taskType: data.taskType });
     const crawlerApi = useCrawlerApi();
     const response = await crawlerApi.start(data);
     // 注意：不再手动添加任务到列表，由 WebSocket 消息统一管理
     return response.data;
+  }
+
+  /**
+   * 确认开始爬取（用户点击"确认开始爬取"按钮）
+   */
+  async function confirmStartCrawl(taskId: string) {
+    logger.info('确认开始爬取', { taskId });
+    const crawlerApi = useCrawlerApi();
+    const response = await crawlerApi.confirmStartCrawl(taskId);
+    if (response.success && response.data) {
+      const index = tasks.value.findIndex(t => t.id === taskId);
+      if (index !== -1) {
+        tasks.value[index] = response.data;
+      }
+    }
+    return response;
   }
 
   /**
@@ -268,6 +286,7 @@ export const useCrawlerStore = defineStore('crawler', () => {
     wsConnected,
     loadTasks,
     startCrawler,
+    confirmStartCrawl,
     cancelTask,
     submitXPath,
     confirmContent,

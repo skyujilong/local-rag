@@ -23,30 +23,16 @@ export default defineEventHandler(async (event) => {
     }
 
     if (!confirmed) {
-      // 用户拒绝内容的处理
-      if (task.useXPath) {
-        // XPath 模式：返回等待 XPath 状态，让用户重新输入
-        task.status = 'waiting_xpath'
-        task.xpath = undefined
-        task.previewMarkdown = undefined
-        broadcastTaskUpdate(task)
-        return {
-          success: true,
-          data: task,
-          message: '已取消，请重新输入 XPath'
-        }
-      } else {
-        // 非 XPath 模式：标记任务为已取消
-        task.status = 'failed'
-        task.error = '用户取消确认'
-        task.completedAt = new Date()
-        task.lastUpdatedAt = new Date()
-        broadcastTaskUpdate(task)
-        return {
-          success: true,
-          data: task,
-          message: '已取消，您可以重新创建爬取任务'
-        }
+      // 用户拒绝内容：标记任务为已取消
+      task.status = 'failed'
+      task.error = '用户取消确认'
+      task.completedAt = new Date()
+      task.lastUpdatedAt = new Date()
+      broadcastTaskUpdate(task)
+      return {
+        success: true,
+        data: task,
+        message: '已取消，您可以重新创建爬取任务'
       }
     }
 
@@ -58,7 +44,7 @@ export default defineEventHandler(async (event) => {
       task.url
     )
 
-    // 如果使用了 XPath，清除超时定时器
+    // 如果使用了 XPath，清除超时定时器（兼容旧逻辑）
     if (task.useXPath) {
       clearXPathTimeout(taskId)
     }

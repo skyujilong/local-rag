@@ -45,6 +45,7 @@ export function broadcastTaskUpdate(task: CrawlerTask): void {
     id: task.id,
     url: task.url,
     status: task.status,
+    type: task.type,
     waitForAuth: task.waitForAuth,
     useXPath: task.useXPath,
     startedAt: task.startedAt,
@@ -58,6 +59,12 @@ export function broadcastTaskUpdate(task: CrawlerTask): void {
       : task.previewMarkdown,
     progress: task.progress,
     lastUpdatedAt: task.lastUpdatedAt,
+    contentXPath: task.contentXPath,
+    linksXPath: task.linksXPath,
+    batchResults: task.batchResults,
+    totalLinks: task.totalLinks,
+    completedLinks: task.completedLinks,
+    metadata: task.metadata,
   }
 
   // 使用 WebSocket 管理器广播

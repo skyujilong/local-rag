@@ -95,7 +95,7 @@ export interface BatchCrawlResult {
   title?: string;
   markdown?: string;
   status: 'pending' | 'crawling' | 'success' | 'failed';
-  error?: string;
+  error?: string;  // 改为 string 类型
   crawledAt?: Date;
 }
 

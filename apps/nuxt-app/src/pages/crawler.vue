@@ -10,14 +10,36 @@
                 placeholder="https://example.com"
               />
             </n-form-item>
-            <n-form-item label="等待登录">
-              <n-switch v-model:value="crawlerForm.waitForAuth" />
-              <span class="hint">开启后会打开浏览器等待扫码登录</span>
+            <n-form-item label="爬取模式">
+              <n-radio-group v-model:value="crawlerForm.taskType">
+                <n-radio value="single">单页爬取</n-radio>
+                <n-radio value="batch">批量递归爬取</n-radio>
+              </n-radio-group>
             </n-form-item>
-            <n-form-item label="使用 XPath 精确提取">
-              <n-switch v-model:value="crawlerForm.useXPath" />
-              <span class="hint">开启后登录成功需手动输入 XPath 提取内容</span>
+            <n-form-item label="内容 XPath（可选）">
+              <n-input
+                v-model:value="crawlerForm.contentXPath"
+                placeholder="//div[@class='content']"
+                type="textarea"
+                :rows="2"
+              />
+              <span class="hint">不填写则使用默认的 Readability 提取</span>
             </n-form-item>
+            <!-- 批量模式专属配置 -->
+            <template v-if="crawlerForm.taskType === 'batch'">
+              <n-form-item label="链接列表 XPath">
+                <n-input
+                  v-model:value="crawlerForm.linksXPath"
+                  placeholder="//div[@class='doc-list']//a[@href]"
+                  type="textarea"
+                  :rows="2"
+                />
+                <span class="hint">用于提取要爬取的链接列表</span>
+              </n-form-item>
+              <n-form-item label="最大链接数">
+                <n-input-number v-model:value="crawlerForm.maxLinks" :min="1" :max="500" />
+              </n-form-item>
+            </template>
             <n-form-item>
               <n-button
                 type="primary"
@@ -33,45 +55,50 @@
           </n-form>
         </n-card>
 
-        <!-- XPath 输入面板 -->
-        <n-card v-if="currentTask?.status === 'waiting_xpath'" title="设置内容提取区域" style="margin-top: 20px;">
+        <!-- 浏览器就绪确认面板 -->
+        <n-card v-if="currentTask?.status === 'browser_ready'" title="浏览器已就绪" style="margin-top: 20px;">
           <n-alert type="info" style="margin-bottom: 16px;">
-            <template #header>
-              如何获取 XPath？
-            </template>
-            <ol style="margin: 8px 0; padding-left: 20px;">
-              <li>在打开的浏览器窗口中，找到要提取的内容区域</li>
-              <li>右键点击该内容，选择"检查"或"审查元素"</li>
-              <li>在开发者工具中，右键点击高亮的 HTML 元素</li>
-              <li>选择 Copy → Copy XPath（复制 XPath）</li>
-              <li>将复制的 XPath 粘贴到下方输入框</li>
-            </ol>
-            <div style="margin-top: 12px; padding: 8px 12px; background: #f0f9ff; border-radius: 4px;">
-              <strong>常用 XPath 示例：</strong>
-              <ul style="margin: 4px 0; padding-left: 20px;">
-                <li><code>//article</code> - 提取文章内容</li>
-                <li><code>//div[@class='content']</code> - 提取 class 为 content 的 div</li>
-                <li><code>//main</code> - 提取主要内容区域</li>
-                <li><code>//div[@id='post-content']</code> - 提取 id 为 post-content 的元素</li>
-              </ul>
-            </div>
+            浏览器已打开并导航到目标页面。请手动登录（如需要），然后点击下方按钮开始爬取。
           </n-alert>
-          <n-form-item label="XPath 表达式">
-            <n-input
-              v-model:value="xpathInput"
-              placeholder="//div[@class='content']"
-              type="textarea"
-              :rows="3"
-            />
-          </n-form-item>
           <n-space>
-            <n-button type="primary" @click="submitXPath" :loading="submitting">
-              提取预览
+            <n-button type="primary" @click="confirmStartCrawl" :loading="confirming">
+              确认开始爬取
             </n-button>
             <n-button @click="cancelTask">
               取消任务
             </n-button>
           </n-space>
+        </n-card>
+
+        <!-- 批量爬取进度面板 -->
+        <n-card v-if="currentTask?.type === 'batch' && showBatchProgress" title="批量爬取进度" style="margin-top: 20px;">
+          <n-progress :percentage="batchProgressPercentage" />
+          <div class="batch-stats">
+            <span>已完成：{{ currentTask.completedLinks || 0 }} / {{ currentTask.totalLinks || 0 }}</span>
+            <span>成功：{{ successCount }} | 失败：{{ failedCount }}</span>
+          </div>
+          <!-- 批量结果列表（可折叠） -->
+          <n-collapse v-if="currentTask.batchResults && currentTask.batchResults.length > 0" style="margin-top: 16px;">
+            <n-collapse-item title="查看详细结果" name="results">
+              <n-list>
+                <n-list-item v-for="(result, idx) in currentTask.batchResults" :key="idx">
+                  <template #prefix>
+                    <n-tag
+                      :type="result.status === 'success' ? 'success' : result.status === 'failed' ? 'error' : 'default'"
+                      size="small"
+                    >
+                      {{ result.status === 'success' ? '成功' : result.status === 'failed' ? '失败' : '待处理' }}
+                    </n-tag>
+                  </template>
+                  <div class="batch-result-item">
+                    <div class="result-url">{{ result.url }}</div>
+                    <div v-if="result.title" class="result-title">{{ result.title }}</div>
+                    <div v-if="result.error" class="result-error">{{ result.error }}</div>
+                  </div>
+                </n-list-item>
+              </n-list>
+            </n-collapse-item>
+          </n-collapse>
         </n-card>
 
         <!-- 内容确认面板 -->
@@ -103,7 +130,7 @@
           </n-alert>
         </n-card>
 
-        <!-- 新增：实时进度面板 -->
+        <!-- 实时进度面板 -->
         <n-card v-if="showProgressPanel" title="任务进度" style="margin-top: 20px;">
           <n-progress
             type="line"
@@ -123,18 +150,6 @@
               {{ currentTask.progress.stepDetails }}
             </div>
           </div>
-        </n-card>
-
-        <!-- 浏览器控制面板 -->
-        <n-card v-if="showBrowserControl" title="浏览器控制" style="margin-top: 20px;" class="browser-control-card">
-          <n-alert type="info" style="margin-bottom: 16px;">
-            浏览器保持打开中，您可以继续使用或手动关闭
-          </n-alert>
-          <n-space>
-            <n-button type="error" @click="handleCloseBrowser">
-              关闭浏览器
-            </n-button>
-          </n-space>
         </n-card>
 
         <n-card title="任务列表" style="margin-top: 20px;">
@@ -173,27 +188,6 @@
             </div>
           </div>
         </n-card>
-
-        <n-card title="登录状态" style="margin-top: 20px;">
-          <n-alert
-            v-if="currentTask?.authStatus === 'waiting_qrcode'"
-            type="info"
-            title="等待扫码登录"
-          >
-            请在打开的浏览器窗口中扫描二维码登录
-          </n-alert>
-          <n-alert
-            v-else-if="currentTask?.authStatus === 'success'"
-            type="success"
-            title="登录成功"
-          />
-          <n-alert
-            v-else-if="currentTask?.authStatus === 'failed'"
-            type="error"
-            title="登录失败"
-          />
-          <n-empty v-else description="无活动登录" />
-        </n-card>
       </n-grid-item>
     </n-grid>
   </div>
@@ -213,19 +207,19 @@ const crawlerStore = useCrawlerStore();
 
 const crawlerForm = ref({
   url: '',
-  waitForAuth: false,
-  useXPath: false,
+  taskType: 'single' as 'single' | 'batch',
+  contentXPath: '',
+  linksXPath: '',
+  maxLinks: 100,
 });
 
-const xpathInput = ref('');
-const submitting = ref(false);
+const confirming = ref(false);
 const draftId = ref('');
 
 const currentTask = computed(() => {
   return crawlerStore.tasks.find((t: CrawlerTask) =>
     t.status === 'running' ||
-    t.status === 'waiting_auth' ||
-    t.status === 'waiting_xpath' ||
+    t.status === 'browser_ready' ||
     t.status === 'waiting_confirm'
   );
 });
@@ -259,11 +253,34 @@ const renderedMarkdown = computed(() => {
   return md.render(previewMarkdown);
 });
 
-// 新增：进度面板显示逻辑
+// 进度面板显示逻辑
 const showProgressPanel = computed(() => {
-  return currentTask.value?.status === 'running' ||
-         currentTask.value?.status === 'waiting_auth' ||
-         currentTask.value?.status === 'waiting_xpath';
+  return currentTask.value?.status === 'running';
+});
+
+// 批量爬取进度面板显示逻辑
+const showBatchProgress = computed(() => {
+  return currentTask.value?.status === 'running' && currentTask.value.type === 'batch';
+});
+
+// 批量爬取进度百分比
+const batchProgressPercentage = computed(() => {
+  const task = currentTask.value;
+  if (!task || !task.totalLinks || task.totalLinks === 0) return 0;
+  return Math.round((task.completedLinks || 0) / task.totalLinks * 100);
+});
+
+// 批量爬取成功/失败统计
+const successCount = computed(() => {
+  const task = currentTask.value;
+  if (!task || !task.batchResults) return 0;
+  return task.batchResults.filter(r => r.status === 'success').length;
+});
+
+const failedCount = computed(() => {
+  const task = currentTask.value;
+  if (!task || !task.batchResults) return 0;
+  return task.batchResults.filter(r => r.status === 'failed').length;
 });
 
 // 新增：当前任务进度百分比
@@ -271,30 +288,9 @@ const currentTaskProgress = computed(() => {
   return currentTask.value?.progress?.progressPercentage || 0;
 });
 
-// 新增：进度状态
+// 进度状态
 const progressStatus = computed(() => {
-  const status = currentTask.value?.status;
-  if (status === 'running' || status === 'waiting_auth') {
-    return 'info' as const;
-  }
-  if (status === 'waiting_xpath') {
-    return 'warning' as const;
-  }
-  return 'default' as const;
-});
-
-// 显示浏览器控制面板：任务已完成且使用了 XPath 模式
-const showBrowserControl = computed(() => {
-  return crawlerStore.tasks.some((t: CrawlerTask) =>
-    (t.status === 'completed' || t.status === 'waiting_confirm') && t.useXPath === true
-  );
-});
-
-// 获取已完成的 XPath 任务
-const completedXPathTask = computed(() => {
-  return crawlerStore.tasks.find((t: CrawlerTask) =>
-    (t.status === 'completed' || t.status === 'waiting_confirm') && t.useXPath === true
-  );
+  return 'info' as const;
 });
 
 // 任务表格列配置
@@ -302,6 +298,14 @@ const taskColumns = computed<DataTableColumns<CrawlerTask>>(() => [
   {
     title: 'URL',
     key: 'url',
+  },
+  {
+    title: '类型',
+    key: 'type',
+    width: 80,
+    render: (row) => {
+      return row.type === 'batch' ? '批量' : '单页';
+    },
   },
   {
     title: '状态',
@@ -316,20 +320,6 @@ const taskColumns = computed<DataTableColumns<CrawlerTask>>(() => [
     },
   },
   {
-    title: '认证状态',
-    key: 'authStatus',
-    width: 120,
-    render: (row) => {
-      const authStatus = row.authStatus;
-      if (!authStatus) return '-';
-      return h(NTag, {
-        type: getAuthStatusTagType(authStatus),
-        size: 'small',
-        bordered: false,
-      }, { default: () => getAuthStatusLabel(authStatus) });
-    },
-  },
-  {
     title: '文档数',
     key: 'documentCount',
     width: 80,
@@ -339,7 +329,7 @@ const taskColumns = computed<DataTableColumns<CrawlerTask>>(() => [
     key: 'actions',
     width: 100,
     render: (row) => {
-      if (row.status === 'running' || row.status === 'waiting_auth' || row.status === 'waiting_xpath' || row.status === 'waiting_confirm') {
+      if (row.status === 'running' || row.status === 'browser_ready' || row.status === 'waiting_confirm') {
         return h(NButton, {
           text: true,
           type: 'warning',
@@ -360,29 +350,34 @@ async function startCrawler() {
   try {
     await crawlerStore.startCrawler(crawlerForm.value);
     message.success('爬虫任务已创建');
-    crawlerForm.value.url = '';
+    // 重置表单，但保留 contentXPath 和 linksXPath 方便下次使用
+    const savedContentXPath = crawlerForm.value.contentXPath;
+    const savedLinksXPath = crawlerForm.value.linksXPath;
+    crawlerForm.value = {
+      url: '',
+      taskType: 'single',
+      contentXPath: savedContentXPath,
+      linksXPath: savedLinksXPath,
+      maxLinks: 100,
+    };
   } catch {
     message.error('启动爬虫失败');
   }
 }
 
-async function submitXPath() {
-  if (!xpathInput.value) {
-    message.warning('请输入 XPath');
-    return;
-  }
+async function confirmStartCrawl() {
   if (!currentTask.value) {
     message.error('当前没有活动任务');
     return;
   }
-  submitting.value = true;
+  confirming.value = true;
   try {
-    await crawlerStore.submitXPath(currentTask.value.id, xpathInput.value);
-    message.success('内容提取成功');
+    await crawlerStore.confirmStartCrawl(currentTask.value.id);
+    message.success('开始爬取');
   } catch {
-    message.error('提取失败，请检查 XPath 是否正确');
+    message.error('操作失败');
   } finally {
-    submitting.value = false;
+    confirming.value = false;
   }
 }
 
@@ -397,12 +392,7 @@ async function confirmContent(confirmed: boolean) {
       draftId.value = response.data.draftId;
       message.success('草稿已保存');
     } else if (!confirmed) {
-      // 用户取消，显示相应消息
-      if (currentTask.value.useXPath) {
-        message.info('请重新输入 XPath');
-      } else {
-        message.info('已取消，您可以重新创建爬取任务');
-      }
+      message.info('已取消，您可以重新创建爬取任务');
     }
   } catch {
     message.error('操作失败');
@@ -417,7 +407,6 @@ async function cancelTask() {
   try {
     await crawlerStore.cancelTask(currentTask.value.id);
     message.info('任务已取消');
-    xpathInput.value = '';
   } catch {
     message.error('取消任务失败');
   }
@@ -427,25 +416,11 @@ function handleDeleteSession(domain: string) {
   crawlerStore.deleteSession(domain);
 }
 
-async function handleCloseBrowser() {
-  if (!completedXPathTask.value) {
-    message.error('没有找到需要关闭浏览器的任务');
-    return;
-  }
-  try {
-    await crawlerStore.closeBrowser(completedXPathTask.value.id);
-  } catch {
-    message.error('关闭浏览器失败');
-  }
-}
-
 function getStatusTagType(status: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error' {
   const types: Record<string, 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'> = {
     pending: 'info',
     running: 'warning',
-    waiting_auth: 'warning',
-    waiting_xpath: 'info',
-    ready_crawl: 'primary',
+    browser_ready: 'primary',
     waiting_confirm: 'primary',
     completed: 'success',
     failed: 'error',
@@ -457,32 +432,10 @@ function getStatusLabel(status: string) {
   const labels: Record<string, string> = {
     pending: '等待中',
     running: '运行中',
-    waiting_auth: '等待登录',
-    waiting_xpath: '等待输入 XPath',
-    ready_crawl: '准备爬取',
+    browser_ready: '等待确认',
     waiting_confirm: '等待确认',
     completed: '已完成',
     failed: '失败',
-  };
-  return labels[status] || status;
-}
-
-function getAuthStatusTagType(status: string): 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error' {
-  const types: Record<string, 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'> = {
-    detected: 'warning',
-    waiting_qrcode: 'info',
-    success: 'success',
-    failed: 'error',
-  };
-  return types[status] || 'default';
-}
-
-function getAuthStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    detected: '检测到登录',
-    waiting_qrcode: '等待扫码',
-    success: '登录成功',
-    failed: '登录失败',
   };
   return labels[status] || status;
 }
@@ -701,14 +654,34 @@ onUnmounted(() => {
   padding-left: 20px;
 }
 
-/* 浏览器控制面板样式 */
-.browser-control-card {
-  border: 2px solid #409eff;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+/* 批量爬取进度面板样式 */
+.batch-stats {
+  margin-top: 12px;
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  color: #666;
 }
 
-.browser-control-card :deep(.n-card__header) {
-  color: #409eff;
-  font-weight: 600;
+.batch-result-item {
+  width: 100%;
+}
+
+.result-url {
+  font-size: 12px;
+  color: #909399;
+  word-break: break-all;
+}
+
+.result-title {
+  font-size: 14px;
+  color: #333;
+  margin-top: 4px;
+}
+
+.result-error {
+  font-size: 12px;
+  color: #f56c6c;
+  margin-top: 4px;
 }
 </style>

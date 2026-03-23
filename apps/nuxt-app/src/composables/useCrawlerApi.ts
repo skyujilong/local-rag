@@ -38,7 +38,13 @@ export function useCrawlerApi() {
   /**
    * 开始爬虫任务
    */
-  async function start(data: { url: string; waitForAuth?: boolean; useXPath?: boolean }) {
+  async function start(data: {
+    url: string;
+    taskType?: 'single' | 'batch';
+    contentXPath?: string;
+    linksXPath?: string;
+    maxLinks?: number;
+  }) {
     return $fetch<ApiResponse<CrawlerTask>>('/crawler/tasks', {
       baseURL,
       method: 'POST',
@@ -46,6 +52,20 @@ export function useCrawlerApi() {
         'Content-Type': 'application/json',
       },
       body: data,
+    })
+  }
+
+  /**
+   * 确认开始爬取
+   */
+  async function confirmStartCrawl(taskId: string) {
+    return $fetch<ApiResponse<CrawlerTask>>('/crawler/start-crawl', {
+      baseURL,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: { taskId },
     })
   }
 
@@ -154,6 +174,7 @@ export function useCrawlerApi() {
     getTasks,
     getTask,
     start,
+    confirmStartCrawl,
     cancel,
     submitXPath,
     confirmContent,

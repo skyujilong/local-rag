@@ -11,8 +11,10 @@ import type { CrawlerTask } from '@local-rag/shared/types'
 
 type CreateCrawlerTaskBody = {
   url?: string
-  waitForAuth?: boolean
-  useXPath?: boolean
+  taskType?: 'single' | 'batch'
+  contentXPath?: string
+  linksXPath?: string
+  maxLinks?: number
 }
 
 const logger = createLogger(LogSystem.API, 'crawler/tasks')
@@ -76,13 +78,27 @@ export default defineEventHandler(async (event) => {
       }
 
       logger.info('收到爬虫任务请求', { body, hasUrl: !!body.url, urlType: typeof body.url })
-      const { url, waitForAuth = false, useXPath = false } = body
+      const {
+        url,
+        taskType = 'single',
+        contentXPath,
+        linksXPath,
+        maxLinks = 100
+      } = body
 
       if (!url || typeof url !== 'string') {
-        logger.info('URL 验证失败', { url, waitForAuth, useXPath, body })
+        logger.info('URL 验证失败', { url, taskType, body })
         throw createError({
           statusCode: 400,
           message: '请提供有效的 URL',
+        })
+      }
+
+      // 批量模式必须提供 linksXPath
+      if (taskType === 'batch' && !linksXPath) {
+        throw createError({
+          statusCode: 400,
+          message: '批量模式必须提供链接列表 XPath',
         })
       }
 
@@ -98,25 +114,27 @@ export default defineEventHandler(async (event) => {
       // 生成任务 ID
       const taskId = `task_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
-      // 计算总步骤数
-      const totalSteps = waitForAuth ? CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_WITH_AUTH : CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_NO_AUTH
-
       // 创建任务
       const task: CrawlerTask = {
         id: taskId,
         url,
         status: 'pending',
-        type: 'single',  // 默认为单页模式
-        waitForAuth,
-        useXPath,
+        type: taskType,
+        waitForAuth: false,  // 已废弃，保留以兼容类型
+        useXPath: false,     // 已废弃，保留以兼容类型
+        contentXPath,
+        linksXPath: taskType === 'batch' ? linksXPath : undefined,
         startedAt: new Date(),
         progress: {
           currentStep: '任务已创建',
           currentStepNumber: 1,
-          totalSteps,
+          totalSteps: 3,
           progressPercentage: 0,
         },
         lastUpdatedAt: new Date(),
+        metadata: {
+          maxLinks,
+        },
       }
 
       activeTasks.set(taskId, task)
@@ -164,118 +182,75 @@ async function runCrawlerTask(taskId: string) {
   const task = activeTasks.get(taskId)
   if (!task) return
 
-  let totalSteps = CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_NO_AUTH
-  if (task.waitForAuth) {
-    totalSteps = CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_WITH_AUTH
-  }
+  const totalSteps = 3
 
   try {
-    // 步骤 1: 启动任务
+    // 步骤 1: 启动浏览器
     updateTaskProgress(task, {
-      currentStep: '启动爬虫任务',
+      currentStep: '启动浏览器',
       currentStepNumber: 1,
       totalSteps,
       progressPercentage: Math.round((1 / totalSteps) * 100),
-      stepDetails: '正在初始化...',
+      stepDetails: '正在初始化浏览器实例...',
     })
     task.status = 'running'
     broadcastTaskUpdate(task)
 
-    // 步骤 2: 启动浏览器
+    // 步骤 2: 导航到目标页面
     updateTaskProgress(task, {
-      currentStep: '启动浏览器',
+      currentStep: '导航到目标页面',
       currentStepNumber: 2,
       totalSteps,
       progressPercentage: Math.round((2 / totalSteps) * 100),
-      stepDetails: '正在初始化浏览器实例...',
-    })
-    broadcastTaskUpdate(task)
-
-    // 步骤 3: 导航到目标页面
-    updateTaskProgress(task, {
-      currentStep: '导航到目标页面',
-      currentStepNumber: 3,
-      totalSteps,
-      progressPercentage: Math.round((3 / totalSteps) * 100),
       stepDetails: `正在加载: ${task.url}`,
     })
     broadcastTaskUpdate(task)
 
-    // 执行爬虫任务
+    // 执行爬虫任务（只打开浏览器，不自动爬取）
     const result = await crawl(task.url, {
-      waitForAuth: task.waitForAuth,
-      useXPath: task.useXPath,
-      onAuthStatusChange: (status) => {
-        task.authStatus = status
-
-        if (status === 'detected') {
-          updateTaskProgress(task, {
-            currentStep: '检测到登录需求',
-            currentStepNumber: 4,
-            totalSteps,
-            progressPercentage: Math.round((4 / totalSteps) * 100),
-            stepDetails: '请在浏览器中完成登录操作',
-          })
-        } else if (status === 'waiting_qrcode') {
-          updateTaskProgress(task, {
-            currentStep: '等待扫码登录',
-            currentStepNumber: 5,
-            totalSteps,
-            progressPercentage: Math.round((5 / totalSteps) * 100),
-            stepDetails: '请使用手机扫描二维码登录',
-          })
-        } else if (status === 'success') {
-          updateTaskProgress(task, {
-            currentStep: '登录成功',
-            currentStepNumber: 6,
-            totalSteps,
-            progressPercentage: Math.round((6 / totalSteps) * 100),
-            stepDetails: '会话已保存',
-          })
-        }
-
-        broadcastTaskUpdate(task)
-      },
+      contentXPath: task.contentXPath,
       onProgress: (documentCount) => {
         task.documentCount = documentCount
         task.lastUpdatedAt = new Date()
         broadcastTaskUpdate(task)
       },
-      onLoginSuccess: (page) => {
-        // 这个回调会在两种情况下被调用：
-        // 1. 登录成功后（waitForAuth = true）
-        // 2. XPath 模式下页面加载完成（useXPath = true）
-        logger.info(`onLoginSuccess 回调被触发`, { taskId, useXPath: task.useXPath, waitForAuth: task.waitForAuth })
-        if (task.useXPath) {
-          const xpathStepNumber = task.waitForAuth ? CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_WITH_AUTH : CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_NO_AUTH
-          updateTaskProgress(task, {
-            currentStep: '等待输入 XPath',
-            currentStepNumber: xpathStepNumber,
-            totalSteps,
-            progressPercentage: Math.round((xpathStepNumber / totalSteps) * 100),
-            stepDetails: '请在界面中输入 XPath 表达式',
-          })
-          task.status = 'waiting_xpath'
-          logger.info(`任务状态已设置为 waiting_xpath`, { taskId, status: task.status })
-          broadcastTaskUpdate(task)
-          logger.info(`任务状态已广播`, { taskId, status: task.status })
-        }
+      onBrowserReady: (page) => {
+        // 保存页面引用
+        const { activePages } = require('../../crawler/crawler-service.js')
+        activePages.set(taskId, page)
+
+        // 保存 pageId 到 metadata
+        task.metadata = task.metadata || {}
+        task.metadata.pageId = taskId
+
+        // 更新任务状态为 browser_ready
+        updateTaskProgress(task, {
+          currentStep: '浏览器已就绪',
+          currentStepNumber: 3,
+          totalSteps,
+          progressPercentage: 100,
+          stepDetails: '请手动登录（如需要），然后点击"确认开始爬取"',
+        })
+        task.status = 'browser_ready'
+        task.lastUpdatedAt = new Date()
+        broadcastTaskUpdate(task)
+
+        logger.info(`任务 ${taskId} 浏览器已就绪，等待用户确认`)
       },
     })
 
-    if (result.waitingForXPath) {
-      logger.info(`任务 ${taskId} 等待用户输入 XPath`)
+    if (result.browserReady) {
+      logger.info(`任务 ${taskId} 等待用户确认开始爬取`)
       return
     }
 
-    // 如果返回了 Markdown，进入确认流程
+    // 如果直接返回了 Markdown（不需要用户确认的情况），进入确认流程
     if (result.markdown && result.title) {
-      const confirmStepNumber = task.waitForAuth ? CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_WITH_AUTH : CRAWLER_CONFIG.DEFAULT_TOTAL_STEPS_NO_AUTH
       updateTaskProgress(task, {
         currentStep: '等待用户确认',
-        currentStepNumber: confirmStepNumber,
+        currentStepNumber: 3,
         totalSteps,
-        progressPercentage: Math.round((confirmStepNumber / totalSteps) * 100),
+        progressPercentage: 100,
         stepDetails: '请查看并确认爬取的内容',
       })
       task.previewMarkdown = result.markdown
@@ -285,20 +260,6 @@ async function runCrawlerTask(taskId: string) {
       logger.info(`任务 ${taskId} 等待用户确认`, { markdownLength: result.markdown.length })
       return
     }
-
-    // 最后步骤: 完成
-    updateTaskProgress(task, {
-      currentStep: '爬取完成',
-      currentStepNumber: totalSteps,
-      totalSteps,
-      progressPercentage: 100,
-      stepDetails: `爬取已完成`,
-    })
-    task.status = 'completed'
-    task.completedAt = new Date()
-    task.lastUpdatedAt = new Date()
-
-    broadcastTaskUpdate(task)
   } catch (error) {
     updateTaskProgress(task, {
       currentStep: '任务失败',

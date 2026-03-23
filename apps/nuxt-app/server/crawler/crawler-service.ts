@@ -9,7 +9,6 @@ import { JSDOM } from 'jsdom';
 import TurndownService from 'turndown';
 import { createLogger, LogSystem } from '@local-rag/shared';
 import * as SessionManager from './session-manager.js';
-import * as LoginDetector from './auth/login-detector.js';
 import * as DocumentManager from '../services/knowledge-base/document-manager.js';
 import * as NoteManager from '../services/notes/note-manager.js';
 import { extractDomain } from '@local-rag/shared/utils';
@@ -71,19 +70,16 @@ async function createContextWithSession(domain: string, browser: Browser): Promi
 }
 
 export interface CrawlOptions {
-  waitForAuth?: boolean;
-  useXPath?: boolean;
-  onAuthStatusChange?: (status: 'detected' | 'waiting_qrcode' | 'success' | 'failed') => void;
+  contentXPath?: string;  // 内容提取 XPath（可选）
   onProgress?: (documentCount: number) => void;
-  onLoginSuccess?: (page: Page) => void;
+  onBrowserReady?: (page: Page) => void;
 }
 
 export interface CrawlResult {
   url: string;
   success: boolean;
-  waitingForXPath?: boolean;
+  browserReady?: boolean;  // 浏览器已就绪，等待用户确认开始爬取
   keepBrowserOpen?: boolean;
-  // 新增：返回 Markdown 内容
   markdown?: string;
   title?: string;
 }
@@ -98,7 +94,7 @@ export async function crawl(url: string, options: CrawlOptions = {}): Promise<Cr
   const config = getCrawlerConfig();
   const domain = extractDomain(url);
 
-  logger.info('开始爬取', { url, domain, waitForAuth: options.waitForAuth, useXPath: options.useXPath });
+  logger.info('开始爬取', { url, domain, hasContentXPath: !!options.contentXPath });
 
   let browser: Browser | null = null;
   let page: Page | null = null;
@@ -127,181 +123,81 @@ export async function crawl(url: string, options: CrawlOptions = {}): Promise<Cr
     await page.goto(url, { waitUntil: 'networkidle', timeout: config.request.timeout });
     logger.info('页面已加载', { url: page.url() });
 
-    // 检测是否需要登录
-    const needsLogin = await LoginDetector.detectLoginRequired(page);
-    logger.info('登录检测结果', { needsLogin });
-
-    // 处理登录流程（如果需要且用户选择等待）
-    if (needsLogin && options.waitForAuth) {
-      logger.info('检测到登录需求，等待用户登录');
-      options.onAuthStatusChange?.('detected');
-      options.onAuthStatusChange?.('waiting_qrcode');
-
-      // 等待登录成功（通过 URL 变化或特定元素出现检测）
-      await waitForLoginSuccess(page);
-      logger.info('用户登录成功');
-
-      // 保存会话
-      await SessionManager.saveSession(domain, page);
-      logger.info('会话已保存', { domain });
-
-      options.onAuthStatusChange?.('success');
-
-      // 登录成功后调用回调，传递页面引用
-      options.onLoginSuccess?.(page);
-
-      // 登录成功后继续使用当前浏览器，不切换到无头模式
-      logger.info('登录成功，继续执行');
-    } else if (needsLogin && !options.waitForAuth) {
-      logger.warn('检测到登录需求但用户未选择等待登录，继续执行（可能无法获取完整内容）');
+    // 保存页面引用供后续使用
+    if (page) {
+      activePages.set(`${url}_${Date.now()}`, page);
     }
 
-    // 处理 XPath 提取模式（独立于登录流程）
-    if (options.useXPath) {
-      logger.info('启用 XPath 模式，等待用户输入 XPath');
-      keepBrowserOpen = true;
-      // 调用回调通知页面已准备好，保存页面引用供后续 XPath 提取使用
-      options.onLoginSuccess?.(page);
-      return {
-        url,
-        success: true,
-        waitingForXPath: true,
-        keepBrowserOpen: true,
-      };
-    }
+    // 浏览器已就绪，等待用户确认开始爬取
+    keepBrowserOpen = true;
+    options.onBrowserReady?.(page);
+    logger.info('浏览器已就绪，等待用户确认开始爬取');
 
-    // 获取页面内容
-    const html = await page.content();
-    logger.info('页面内容已获取', { htmlLength: html.length });
-
-    // 解析内容获取标题
-    const content = parseContent(html, url);
-    logger.info('内容解析完成', { title: content.title, bodyLength: content.body.length });
-
-    // 使用 Turndown 将 HTML 转换为 Markdown
-    const markdown = generateMarkdown(html, content.title, url);
-    logger.info('Markdown 已生成', { markdownLength: markdown.length });
-
-    options.onProgress?.(1);
-
-    logger.info('爬取成功，等待用户确认', { url });
     return {
       url,
       success: true,
-      markdown,
-      title: content.title,
+      browserReady: true,
+      keepBrowserOpen: true,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('爬取失败', error instanceof Error ? error : new Error(errorMessage), { url });
-    options.onAuthStatusChange?.('failed');
     throw error;
   } finally {
-    // 只有在不需要保持浏览器打开时才关闭
-    if (browser && !keepBrowserOpen) {
-      await browser.close();
-      logger.debug('浏览器已关闭');
-    } else if (browser && keepBrowserOpen) {
+    // 保持浏览器打开，等待用户操作
+    if (browser && keepBrowserOpen) {
       logger.info('保持浏览器打开，等待用户操作');
     }
   }
 }
 
 /**
- * 等待登录成功
+ * 继续爬取（用户确认后）
  */
-async function waitForLoginSuccess(page: Page): Promise<void> {
-  const maxWaitTime = 5 * 60 * 1000; // 5分钟
-  const checkInterval = 2000;
-  const startTime = Date.now();
-  const startUrl = page.url();
+export async function continueCrawl(
+  page: Page,
+  url: string,
+  contentXPath?: string
+): Promise<{ markdown: string; title: string }> {
+  logger.info('继续爬取', { url, hasContentXPath: !!contentXPath });
 
-  logger.info('开始等待登录', { startUrl, maxWaitTime: `${maxWaitTime / 1000}s` });
+  try {
+    let html: string;
+    let title: string;
 
-  let lastCheckUrl = startUrl;
+    if (contentXPath) {
+      // 使用 XPath 提取内容
+      const result = await extractContentByXPath(page, contentXPath);
+      html = result.html;
+      title = result.title;
+      logger.info('XPath 提取完成', { title, htmlLength: html.length });
+    } else {
+      // 获取整个页面内容
+      html = await page.content();
+      logger.info('页面内容已获取', { htmlLength: html.length });
 
-  while (Date.now() - startTime < maxWaitTime) {
-    try {
-      // 检测 URL 变化（通常登录后会跳转）
-      const currentUrl = page.url();
-
-      if (currentUrl !== lastCheckUrl) {
-        logger.info('检测到 URL 变化', { from: lastCheckUrl, to: currentUrl });
-        lastCheckUrl = currentUrl;
-
-        // URL 变化后等待页面稳定
-        await page.waitForLoadState('domcontentloaded').catch((error) => {
-          logger.debug('等待页面稳定超时（预期行为）', { error: error?.message });
-        });
-      }
-
-      // 检测登录框是否仍然存在
-      let hasLoginBox = false;
-      try {
-        hasLoginBox = await LoginDetector.detectLoginRequired(page);
-      } catch (error) {
-        // 登录检测失败，可能因为页面导航
-        logger.debug('登录框检测失败', {
-          error: error instanceof Error
-            ? { message: error.message, stack: error.stack, name: error.name }
-            : { message: String(error) }
-        });
-        // 检测失败时假定为未登录（保守策略）
-        hasLoginBox = true;
-      }
-
-      // 登录成功检测条件：
-      // 1. URL 必须变化且不再包含 login（从登录页跳转到其他页）
-      // 2. 或者登录框消失且当前 URL 不包含 login
-      const urlChanged = currentUrl !== startUrl && !currentUrl.toLowerCase().includes('login');
-      const loginBoxGone = !hasLoginBox && !currentUrl.toLowerCase().includes('login');
-
-      if (urlChanged || loginBoxGone) {
-        logger.info('登录成功条件满足', {
-          urlChanged,
-          loginBoxGone,
-          currentUrl
-        });
-        return;
-      }
-
-      // 记录当前状态用于调试
-      logger.debug('等待登录中...', {
-        currentUrl,
-        hasLoginBox,
-        urlChanged: currentUrl !== startUrl,
-      });
-    } catch (error) {
-      // 捕获页面导航导致的执行上下文错误
-      if (error instanceof Error && error.message.includes('Execution context was destroyed')) {
-        logger.debug('页面导航中，等待页面稳定...', {
-          error: { message: error.message, stack: error.stack, name: error.name }
-        });
-        // 等待页面稳定后继续
-        await page.waitForLoadState('domcontentloaded').catch((err) => {
-          logger.debug('等待页面稳定失败', {
-            error: err instanceof Error
-              ? { message: err.message, stack: err.stack, name: err.name }
-              : { message: String(err) }
-          });
-        });
-        continue;
-      }
-      // 其他错误继续抛出
-      throw error;
+      // 解析内容获取标题
+      const content = parseContent(html, url);
+      title = content.title;
+      logger.info('内容解析完成', { title });
     }
 
-    await page.waitForTimeout(checkInterval);
-  }
+    // 使用 Turndown 将 HTML 转换为 Markdown
+    const markdown = generateMarkdown(html, title, url);
+    logger.info('Markdown 已生成', { markdownLength: markdown.length });
 
-  logger.warn('等待登录超时', { elapsed: `${maxWaitTime / 1000}s`, currentUrl: page.url() });
-  throw new Error('等待登录超时');
+    return { markdown, title };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('继续爬取失败', error instanceof Error ? error : new Error(errorMessage), { url });
+    throw error;
+  }
 }
 
 /**
  * 解析网页内容
  */
-function parseContent(html: string, url: string): {
+export function parseContent(html: string, url: string): {
   title: string;
   body: string;
   language: string;
@@ -367,6 +263,10 @@ export async function extractContentByXPath(
 
     // 提取第一个匹配元素的内容
     const firstElement = elements[0];
+    if (!firstElement) {
+      throw new Error('无法获取第一个元素');
+    }
+
     const html = await firstElement.innerHTML();
     const text = await firstElement.textContent();
     const title = await page.title();
@@ -399,12 +299,12 @@ function getTurndownService(): TurndownService {
       filter: (node) => {
         return (
           node.nodeName === 'PRE' &&
-          node.firstChild &&
-          node.firstChild.nodeName === 'CODE'
+          node.firstChild !== null &&
+          (node.firstChild as HTMLElement).nodeName === 'CODE'
         );
       },
       replacement: (content, node) => {
-        const codeNode = node.firstChild;
+        const codeNode = node.firstChild as HTMLElement | null;
         const className = codeNode?.className || '';
         const language = className.match(/language-(\w+)/)?.[1] || '';
         return '\n\n```' + language + '\n' + content + '\n```\n\n';
