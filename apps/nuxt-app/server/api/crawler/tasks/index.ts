@@ -5,7 +5,7 @@
 import { createError, defineEventHandler, readBody, readRawBody } from 'h3'
 import { createLogger, LogSystem } from '@local-rag/shared'
 import { activeTasks, CRAWLER_CONFIG, updateTaskProgress, broadcastTaskUpdate } from '../../../utils/crawler-tasks'
-import { crawl } from '../../../crawler/crawler-service'
+import { crawl, activePages } from '../../../crawler/crawler-service'
 import { ResourceManager, taskQueue } from '../../../crawler/concurrency-controller'
 import type { CrawlerTask } from '@local-rag/shared/types'
 
@@ -216,7 +216,6 @@ async function runCrawlerTask(taskId: string) {
       },
       onBrowserReady: (page) => {
         // 保存页面引用
-        const { activePages } = require('../../crawler/crawler-service.js')
         activePages.set(taskId, page)
 
         // 保存 pageId 到 metadata

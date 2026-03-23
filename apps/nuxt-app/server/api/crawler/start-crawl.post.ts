@@ -4,7 +4,7 @@
 import { createError, defineEventHandler, readBody } from 'h3'
 import { createLogger, LogSystem } from '@local-rag/shared'
 import { activeTasks, CRAWLER_CONFIG, updateTaskProgress, broadcastTaskUpdate } from '../../utils/crawler-tasks'
-import { continueCrawl, saveAsDraft } from '../../crawler/crawler-service'
+import { continueCrawl, saveAsDraft, activePages } from '../../crawler/crawler-service'
 import type { CrawlerTask } from '@local-rag/shared/types'
 
 type StartCrawlBody = {
@@ -81,10 +81,6 @@ async function executeCrawl(taskId: string) {
     }
 
     // 获取页面引用（从全局存储）
-    // 注意：这里需要从某个地方获取 page 实例
-    // 由于 activePages 使用的是 URL+时间戳作为 key，我们需要改进这个存储方式
-    // 暂时使用 task ID 作为 key
-    const { activePages } = await import('../../crawler/crawler-service.js')
     const page = activePages.get(taskId)
     if (!page) {
       throw new Error('浏览器页面未找到')

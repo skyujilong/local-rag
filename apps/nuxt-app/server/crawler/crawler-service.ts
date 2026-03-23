@@ -123,10 +123,7 @@ export async function crawl(url: string, options: CrawlOptions = {}): Promise<Cr
     await page.goto(url, { waitUntil: 'networkidle', timeout: config.request.timeout });
     logger.info('页面已加载', { url: page.url() });
 
-    // 保存页面引用供后续使用
-    if (page) {
-      activePages.set(`${url}_${Date.now()}`, page);
-    }
+    // 注意：页面引用由调用方（tasks/index.ts）通过 onBrowserReady 回调保存
 
     // 浏览器已就绪，等待用户确认开始爬取
     keepBrowserOpen = true;

@@ -40,6 +40,13 @@ export function updateTaskProgress(
 export function broadcastTaskUpdate(task: CrawlerTask): void {
   const wsManager = (globalThis as typeof globalThis & { __wsManager?: WsManager }).__wsManager
 
+  console.log('[broadcastTaskUpdate] 广播任务更新', {
+    taskId: task.id,
+    status: task.status,
+    hasWsManager: !!wsManager,
+    clientCount: wsManager ? (wsManager as any).getClientCount?.() : 0,
+  })
+
   // 创建干净的副本用于广播
   const taskCopy = {
     id: task.id,
@@ -70,5 +77,8 @@ export function broadcastTaskUpdate(task: CrawlerTask): void {
   // 使用 WebSocket 管理器广播
   if (wsManager) {
     wsManager.broadcast('crawler:task:updated', taskCopy)
+    console.log('[broadcastTaskUpdate] 广播完成', { taskId: task.id, status: task.status })
+  } else {
+    console.warn('[broadcastTaskUpdate] wsManager 不存在，无法广播任务更新')
   }
 }
