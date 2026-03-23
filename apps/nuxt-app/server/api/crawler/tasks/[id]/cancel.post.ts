@@ -3,7 +3,7 @@
  */
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { createLogger, LogSystem } from '@local-rag/shared'
-import { activeTasks, updateTaskProgress, broadcastTaskUpdate } from '../../../../utils/crawler-tasks'
+import { activeTasks, updateTaskProgress, broadcastTaskUpdate, cleanupTask } from '../../../../utils/crawler-tasks'
 
 const logger = createLogger(LogSystem.API, 'crawler/tasks/cancel')
 
@@ -38,8 +38,12 @@ export default defineEventHandler(async (event) => {
     task.status = 'failed'
     task.error = '用户取消'
     task.completedAt = new Date()
+    task.lastUpdatedAt = new Date()
 
     broadcastTaskUpdate(task)
+
+    // 清理任务资源
+    cleanupTask(id)
 
     return {
       success: true,

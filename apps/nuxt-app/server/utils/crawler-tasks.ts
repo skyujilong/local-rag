@@ -3,10 +3,15 @@
  * 管理活跃任务和 WebSocket 广播
  */
 import type { CrawlerTask, CrawlerTaskProgress } from '@local-rag/shared/types'
+import { createLogger, LogSystem } from '@local-rag/shared'
+import { activePages, clearXPathTimeout } from '../crawler/crawler-service.js'
 
 type WsManager = {
   broadcast: (event: string, payload: unknown) => void
+  getClientCount: () => number
 }
+
+const logger = createLogger(LogSystem.API, 'crawler-tasks')
 
 // 存储活跃的任务
 export const activeTasks = new Map<string, CrawlerTask>()
@@ -40,11 +45,11 @@ export function updateTaskProgress(
 export function broadcastTaskUpdate(task: CrawlerTask): void {
   const wsManager = (globalThis as typeof globalThis & { __wsManager?: WsManager }).__wsManager
 
-  console.log('[broadcastTaskUpdate] 广播任务更新', {
+  logger.debug('广播任务更新', {
     taskId: task.id,
     status: task.status,
     hasWsManager: !!wsManager,
-    clientCount: wsManager ? (wsManager as any).getClientCount?.() : 0,
+    clientCount: wsManager ? wsManager.getClientCount?.() : 0,
   })
 
   // 创建干净的副本用于广播
@@ -77,8 +82,94 @@ export function broadcastTaskUpdate(task: CrawlerTask): void {
   // 使用 WebSocket 管理器广播
   if (wsManager) {
     wsManager.broadcast('crawler:task:updated', taskCopy)
-    console.log('[broadcastTaskUpdate] 广播完成', { taskId: task.id, status: task.status })
   } else {
-    console.warn('[broadcastTaskUpdate] wsManager 不存在，无法广播任务更新')
+    logger.warn('wsManager 不存在，无法广播任务更新')
   }
+}
+
+/**
+ * 清理任务资源
+ * 在任务完成、取消或超时时调用，释放相关资源
+ */
+export function cleanupTask(taskId: string): void {
+  logger.info('开始清理任务资源', { taskId })
+
+  try {
+    // 关闭并清理页面引用
+    const page = activePages.get(taskId)
+    if (page) {
+      page.close().catch((err) => {
+        logger.error('关闭页面失败', err as Error, { taskId })
+      })
+      activePages.delete(taskId)
+      logger.debug('页面引用已清理', { taskId })
+    }
+
+    // 清除 XPath 超时定时器
+    clearXPathTimeout(taskId)
+
+    // 从活跃任务中移除
+    const removed = activeTasks.delete(taskId)
+    if (removed) {
+      logger.info('任务资源已清理', { taskId })
+    } else {
+      logger.warn('任务不存在，可能已被清理', { taskId })
+    }
+  } catch (error) {
+    logger.error('清理任务资源失败', error as Error, { taskId })
+  }
+}
+
+/**
+ * 清理过期任务
+ * 定期调用以清理长时间未更新的任务
+ */
+export function cleanupExpiredTasks(maxAge: number = 3600000): number {
+  const now = Date.now()
+  const expiredTaskIds: string[] = []
+
+  for (const [taskId, task] of activeTasks.entries()) {
+    const taskAge = now - (task.lastUpdatedAt?.getTime() || task.startedAt?.getTime() || 0)
+
+    // 清理超过最大年龄的任务
+    if (taskAge > maxAge) {
+      expiredTaskIds.push(taskId)
+    }
+  }
+
+  // 清理过期任务
+  for (const taskId of expiredTaskIds) {
+    cleanupTask(taskId)
+  }
+
+  if (expiredTaskIds.length > 0) {
+    logger.info('已清理过期任务', {
+      count: expiredTaskIds.length,
+      taskIds: expiredTaskIds,
+    })
+  }
+
+  return expiredTaskIds.length
+}
+
+/**
+ * 获取活跃任务统计
+ */
+export function getActiveTasksStats(): {
+  total: number
+  byStatus: Record<string, number>
+  byType: Record<string, number>
+} {
+  const stats = {
+    total: activeTasks.size,
+    byStatus: {} as Record<string, number>,
+    byType: {} as Record<string, number>,
+  }
+
+  for (const task of activeTasks.values()) {
+    stats.byStatus[task.status] = (stats.byStatus[task.status] || 0) + 1
+    stats.byType[task.type] = (stats.byType[task.type] || 0) + 1
+  }
+
+  return stats
 }

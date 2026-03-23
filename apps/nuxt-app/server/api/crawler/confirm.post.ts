@@ -3,7 +3,7 @@
  */
 import { createError, defineEventHandler, readBody } from 'h3'
 import { createLogger, LogSystem } from '@local-rag/shared'
-import { activeTasks, updateTaskProgress, broadcastTaskUpdate } from '../../utils/crawler-tasks'
+import { activeTasks, updateTaskProgress, broadcastTaskUpdate, cleanupTask } from '../../utils/crawler-tasks'
 import { saveAsDraft, clearXPathTimeout } from '../../crawler/crawler-service'
 import { activePages } from '../../crawler/crawler-service'
 
@@ -56,6 +56,9 @@ export default defineEventHandler(async (event) => {
     task.lastUpdatedAt = new Date()
 
     broadcastTaskUpdate(task)
+
+    // 清理任务资源（延迟清理，确保消息已发送）
+    setTimeout(() => cleanupTask(taskId), 1000)
 
     return {
       success: true,

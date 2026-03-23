@@ -95,8 +95,19 @@ export interface BatchCrawlResult {
   title?: string;
   markdown?: string;
   status: 'pending' | 'crawling' | 'success' | 'failed';
-  error?: string;  // 改为 string 类型
+  error?: string;
   crawledAt?: Date;
+}
+
+// 爬虫任务元数据
+export interface CrawlerTaskMetadata {
+  browserPid?: number;
+  pageId?: string;
+  sessionId?: string;
+  maxLinks?: number;
+  saveMode?: 'separate' | 'merged';
+  createdAt?: number;
+  [key: string]: string | number | undefined;
 }
 
 export interface CrawlerTask {
@@ -118,13 +129,8 @@ export interface CrawlerTask {
   // 新增时间戳
   lastUpdatedAt?: Date;
   // 新增元数据
-  metadata?: {
-    browserPid?: number;
-    pageId?: string;
-    sessionId?: string;
-    [key: string]: any;
-  };
-  
+  metadata?: CrawlerTaskMetadata;
+
   // 批量爬取相关字段
   linksXPath?: string;           // 链接列表的 XPath
   contentXPath?: string;         // 内容提取的 XPath（可选）
