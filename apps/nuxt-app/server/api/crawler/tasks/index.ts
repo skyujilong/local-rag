@@ -215,9 +215,29 @@ async function runCrawlerTask(taskId: string) {
         task.lastUpdatedAt = new Date()
         broadcastTaskUpdate(task)
       },
+      onPageEvent: (event) => {
+        // 更新任务的页面事件信息
+        task.metadata = task.metadata || {}
+        task.metadata.lastPageEventType = event.type
+        task.metadata.lastPageUrl = event.url
+        task.metadata.lastPageEventTimestamp = event.timestamp
+        task.lastUpdatedAt = new Date()
+
+        logger.info('Playwright 页面事件', {
+          taskId,
+          eventType: event.type,
+          url: event.url,
+        })
+
+        // 广播任务更新，通知前端
+        broadcastTaskUpdate(task)
+      },
       onBrowserReady: (page) => {
+        logger.info(`[DEBUG] onBrowserReady 回调被触发`, { taskId, pageUrl: page.url() });
+
         // 保存页面引用
         activePages.set(taskId, page)
+        logger.info(`[DEBUG] 页面引用已保存`, { taskId, activePagesSize: activePages.size });
 
         // 保存 pageId 到 metadata
         task.metadata = task.metadata || {}
@@ -231,11 +251,26 @@ async function runCrawlerTask(taskId: string) {
           progressPercentage: 100,
           stepDetails: '请手动登录（如需要），然后点击"确认开始爬取"',
         })
+
+        const oldStatus = task.status;
         task.status = 'browser_ready'
         task.lastUpdatedAt = new Date()
-        broadcastTaskUpdate(task)
 
-        logger.info(`任务 ${taskId} 浏览器已就绪，等待用户确认`)
+        logger.info(`[DEBUG] 任务状态已更新`, {
+          taskId,
+          oldStatus,
+          newStatus: task.status,
+        });
+
+        // 重新获取任务确认状态
+        const updatedTask = activeTasks.get(taskId);
+        logger.info(`[DEBUG] 从 activeTasks 重新获取任务`, {
+          taskId,
+          status: updatedTask?.status,
+        });
+
+        broadcastTaskUpdate(task)
+        logger.info(`[DEBUG] 任务更新已广播`, { taskId, status: task.status });
       },
     })
 

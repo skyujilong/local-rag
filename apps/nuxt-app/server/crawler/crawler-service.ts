@@ -15,7 +15,6 @@ import { extractDomain } from '@local-rag/shared/utils';
 import type { CrawlerSession } from '@local-rag/shared/types';
 import { getCrawlerConfig } from '@local-rag/config/crawler';
 import { URL } from 'node:url';
-import { createWebSocketInjectScript } from './websocket-injector.js';
 
 const logger = createLogger(LogSystem.API, 'crawler');
 
@@ -27,6 +26,79 @@ export const activePages = new Map<string, Page>();
 
 // 存储 XPath 等待超时定时器
 export const xpathTimeouts = new Map<string, NodeJS.Timeout>();
+
+/**
+ * 设置 Playwright 页面事件监听
+ * 监听页面加载、导航、响应等事件，用于替代注入的 WebSocket 脚本
+ */
+function setupPageEventListeners(page: Page, taskId: string, onPageEvent?: (event: { type: string; url: string; timestamp: number }) => void): void {
+  // 包装回调以提供错误边界
+  const safeCallback = (eventType: string, url: string) => {
+    try {
+      onPageEvent?.({
+        type: eventType,
+        url,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      logger.error('页面事件回调失败', error as Error, { taskId, eventType, url });
+    }
+  };
+
+  // 监听页面加载完成
+  page.on('load', () => {
+    logger.info('页面加载完成', { taskId, url: page.url() });
+    safeCallback('page_loaded', page.url());
+  });
+
+  // 监听框架导航（包括 SPA 路由变化）
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) {
+      logger.info('页面导航', { taskId, url: frame.url() });
+      safeCallback('page_navigated', frame.url());
+    }
+  });
+
+  // 监听响应（可用于检测 API 调用）
+  page.on('response', (response) => {
+    // 只记录主要的文档响应
+    const resourceType = response.request().resourceType();
+    if (resourceType === 'document') {
+      logger.debug('文档响应', {
+        taskId,
+        url: response.url(),
+        status: response.status(),
+      });
+    }
+  });
+
+  // 监听 DOM 内容加载完成
+  page.on('domcontentloaded', () => {
+    logger.debug('DOM 内容加载完成', { taskId, url: page.url() });
+    safeCallback('dom_content_loaded', page.url());
+  });
+
+  // 监听页面错误
+  page.on('pageerror', (error) => {
+    logger.error('页面错误', error as Error, { taskId });
+    safeCallback('page_error', page.url());
+  });
+
+  logger.info('页面事件监听已设置', { taskId });
+}
+
+/**
+ * 清理页面事件监听器
+ * 移除所有事件监听器，防止内存泄漏
+ */
+export function teardownPageEventListeners(page: Page): void {
+  try {
+    page.removeAllListeners();
+    logger.debug('页面事件监听器已清理', { url: page.url() });
+  } catch (error) {
+    logger.error('清理页面事件监听器失败', error as Error);
+  }
+}
 
 /**
  * 验证 URL 格式和合法性
@@ -46,7 +118,7 @@ function validateUrl(url: string): void {
 /**
  * 创建带会话的浏览器上下文
  */
-async function createContextWithSession(domain: string, browser: Browser, taskId?: string): Promise<BrowserContext> {
+async function createContextWithSession(domain: string, browser: Browser): Promise<BrowserContext> {
   const config = getCrawlerConfig();
   const context = await browser.newContext({
     viewport: config.browser.viewport,
@@ -67,28 +139,15 @@ async function createContextWithSession(domain: string, browser: Browser, taskId
     logger.info('会话已加载到上下文', { domain });
   }
 
-  // 注入 WebSocket 客户端脚本
-  if (taskId) {
-    // 根据环境动态构建 WebSocket URL
-    const isProduction = process.env.NODE_ENV === 'production';
-    const wsProtocol = isProduction ? 'wss:' : 'ws:';
-    // 使用环境变量或默认值
-    const wsHost = process.env.NUXT_PUBLIC_WS_HOST || process.env.WS_HOST || 'localhost:3000';
-    const wsUrl = `${wsProtocol}//${wsHost}/_ws/ws`;
-
-    const wsScript = createWebSocketInjectScript({ wsUrl, taskId });
-    await context.addInitScript(wsScript);
-    logger.info('WebSocket 客户端脚本已注入', { taskId, domain, wsUrl, isProduction });
-  }
-
   return context;
 }
 
 export interface CrawlOptions {
-  taskId?: string;  // 任务 ID，用于 WebSocket 注入
+  taskId?: string;  // 任务 ID，用于进度更新
   contentXPath?: string;  // 内容提取 XPath（可选）
   onProgress?: (documentCount: number) => void;
   onBrowserReady?: (page: Page) => void;
+  onPageEvent?: (event: { type: string; url: string; timestamp: number }) => void;  // 页面事件回调
 }
 
 export interface CrawlResult {
@@ -131,8 +190,14 @@ export async function crawl(url: string, options: CrawlOptions = {}): Promise<Cr
     });
 
     // 创建带会话的上下文
-    const context = await createContextWithSession(domain, browser, options.taskId);
+    const context = await createContextWithSession(domain, browser);
     page = await context.newPage();
+
+    // 设置页面事件监听
+    if (options.taskId) {
+      setupPageEventListeners(page, options.taskId, options.onPageEvent);
+    }
+
     logger.info('浏览器已启动', { mode: 'visible' });
 
     // 导航到目标 URL

@@ -38,29 +38,6 @@ function validateMessage(data: unknown): { valid: boolean; error?: string } {
   return { valid: true };
 }
 
-/**
- * 验证爬虫页面消息
- */
-function validateCrawlerPageMessage(message: Record<string, unknown>): { valid: boolean; error?: string } {
-  if (!message.data || typeof message.data !== 'object') {
-    return { valid: false, error: '缺少 data 字段' };
-  }
-
-  const data = message.data as Record<string, unknown>;
-
-  // 验证 taskId
-  if (!data.taskId || typeof data.taskId !== 'string') {
-    return { valid: false, error: 'taskId 必须是非空字符串' };
-  }
-
-  // 验证 url
-  if (!data.url || typeof data.url !== 'string') {
-    return { valid: false, error: 'url 必须是非空字符串' };
-  }
-
-  return { valid: true };
-}
-
 // 导出 WebSocket 处理器
 // @ts-ignore - Nitro WebSocket experimental API
 export default defineWebSocketHandler({
@@ -90,64 +67,6 @@ export default defineWebSocketHandler({
         peer.send(JSON.stringify({ type: 'pong', data: {} }));
         logger.debug('已响应 ping 消息');
         return;
-      }
-
-      // 处理爬虫页面消息
-      if (data.type === 'crawler:page:connected' ||
-          data.type === 'crawler:page:navigated' ||
-          data.type === 'crawler:page:unloading') {
-
-        // 验证爬虫页面消息
-        const crawlerValidation = validateCrawlerPageMessage(data);
-        if (!crawlerValidation.valid) {
-          logger.warn(`收到无效的 ${data.type} 消息`, {
-            error: crawlerValidation.error,
-          });
-          return;
-        }
-
-        const crawlerData = data.data as { taskId: string; url: string; timestamp?: number };
-
-        if (data.type === 'crawler:page:connected') {
-          logger.info('爬虫页面已连接 WebSocket', {
-            taskId: crawlerData.taskId,
-            url: crawlerData.url,
-          });
-          wsManager.broadcast('crawler:page:status', {
-            taskId: crawlerData.taskId,
-            status: 'page_connected',
-            url: crawlerData.url,
-            timestamp: crawlerData.timestamp || Date.now(),
-          });
-          return;
-        }
-
-        if (data.type === 'crawler:page:navigated') {
-          logger.info('爬虫页面导航', {
-            taskId: crawlerData.taskId,
-            url: crawlerData.url,
-          });
-          wsManager.broadcast('crawler:page:status', {
-            taskId: crawlerData.taskId,
-            status: 'page_navigated',
-            url: crawlerData.url,
-            timestamp: crawlerData.timestamp || Date.now(),
-          });
-          return;
-        }
-
-        if (data.type === 'crawler:page:unloading') {
-          logger.info('爬虫页面即将卸载', {
-            taskId: crawlerData.taskId,
-            url: crawlerData.url,
-          });
-          wsManager.broadcast('crawler:page:status', {
-            taskId: crawlerData.taskId,
-            status: 'page_unloading',
-            url: crawlerData.url,
-          });
-          return;
-        }
       }
 
       logger.debug('未处理的 WebSocket 消息类型', { type: data.type });

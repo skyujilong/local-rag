@@ -18,7 +18,6 @@ const logger = {
 
 let createdHandlerId: symbol | null = null;
 let updatedHandlerId: symbol | null = null;
-let pageStatusHandlerId: symbol | null = null;
 
 export const useCrawlerStore = defineStore('crawler', () => {
   const tasks = ref<CrawlerTask[]>([]);
@@ -46,7 +45,7 @@ export const useCrawlerStore = defineStore('crawler', () => {
    * 只注册一次，避免重复处理消息
    */
   function registerHandlers() {
-    if (createdHandlerId && updatedHandlerId && pageStatusHandlerId) {
+    if (createdHandlerId && updatedHandlerId) {
       logger.debug('WebSocket 处理器已注册，跳过重复注册');
       return;
     }
@@ -54,7 +53,6 @@ export const useCrawlerStore = defineStore('crawler', () => {
     logger.info('注册 WebSocket 处理器');
     createdHandlerId = on('crawler:task:created', handleTaskUpdate);
     updatedHandlerId = on('crawler:task:updated', handleTaskUpdate);
-    pageStatusHandlerId = on('crawler:page:status', handlePageStatus);
   }
 
   /**
@@ -70,22 +68,15 @@ export const useCrawlerStore = defineStore('crawler', () => {
       off('crawler:task:updated', updatedHandlerId);
       updatedHandlerId = null;
     }
-    if (pageStatusHandlerId) {
-      off('crawler:page:status', pageStatusHandlerId);
-      pageStatusHandlerId = null;
-    }
   }
 
   /**
    * 处理任务更新
    */
   function handleTaskUpdate(taskData: CrawlerTask) {
-    logger.debug('处理 WebSocket 任务更新', {
-      id: taskData.id,
+    logger.info('[DEBUG] ===== handleTaskUpdate 开始 =====', {
+      taskId: taskData.id,
       status: taskData.status,
-      hasPreviewMarkdown: !!taskData.previewMarkdown,
-      previewMarkdownLength: taskData.previewMarkdown?.length || 0,
-      progress: taskData.progress,
       lastUpdatedAt: taskData.lastUpdatedAt,
     });
 
@@ -94,7 +85,7 @@ export const useCrawlerStore = defineStore('crawler', () => {
     if (index !== -1) {
       // 更新现有任务
       const oldTask = tasks.value[index]!;
-      logger.debug('更新任务状态', {
+      logger.info('[DEBUG] 更新现有任务', {
         id: oldTask.id,
         oldStatus: oldTask.status,
         newStatus: taskData.status,
@@ -115,48 +106,20 @@ export const useCrawlerStore = defineStore('crawler', () => {
       // 使用 splice 触发响应式更新
       tasks.value.splice(index, 1, updatedTask);
 
-      logger.debug('任务状态更新完成', {
+      logger.info('[DEBUG] 任务状态更新完成', {
         id: updatedTask.id,
         status: updatedTask.status,
         hasPreviewMarkdown: !!updatedTask.previewMarkdown,
         previewMarkdownLength: updatedTask.previewMarkdown?.length || 0,
-        progress: updatedTask.progress,
+        tasksListLength: tasks.value.length,
       });
     } else {
       // 新任务，添加到列表开头
       tasks.value.unshift(taskData);
-      logger.info('新任务已添加', { id: taskData.id, status: taskData.status });
+      logger.info('[DEBUG] 新任务已添加', { id: taskData.id, status: taskData.status });
     }
-  }
 
-  /**
-   * 处理爬虫页面状态更新
-   */
-  function handlePageStatus(status: { taskId: string; status: string; url: string; timestamp?: number }) {
-    logger.info('爬虫页面状态更新', {
-      taskId: status.taskId,
-      pageStatus: status.status,
-      url: status.url,
-    })
-
-    // 可以在任务上添加页面状态信息
-    const task = tasks.value.find(t => t.id === status.taskId)
-    if (task) {
-      // 更新任务的页面状态元数据
-      task.metadata = task.metadata || {}
-      task.metadata.pageStatus = status.status
-      task.metadata.pageUrl = status.url
-      if (status.timestamp) {
-        task.metadata.lastPageUpdate = new Date(status.timestamp)
-      }
-      task.lastUpdatedAt = new Date()
-
-      logger.debug('任务页面状态已更新', {
-        taskId: task.id,
-        pageStatus: status.status,
-        pageUrl: status.url,
-      })
-    }
+    logger.info('[DEBUG] ===== handleTaskUpdate 结束 =====');
   }
 
   /**

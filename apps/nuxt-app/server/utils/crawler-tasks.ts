@@ -4,7 +4,7 @@
  */
 import type { CrawlerTask, CrawlerTaskProgress } from '@local-rag/shared/types'
 import { createLogger, LogSystem } from '@local-rag/shared'
-import { activePages, clearXPathTimeout } from '../crawler/crawler-service.js'
+import { activePages, clearXPathTimeout, teardownPageEventListeners } from '../crawler/crawler-service.js'
 import { getWebSocketManager } from './websocket-manager'
 
 const logger = createLogger(LogSystem.API, 'crawler-tasks')
@@ -89,6 +89,9 @@ export function cleanupTask(taskId: string): void {
     // 关闭并清理页面引用
     const page = activePages.get(taskId)
     if (page) {
+      // 清理事件监听器
+      teardownPageEventListeners(page)
+
       page.close().catch((err) => {
         logger.error('关闭页面失败', err as Error, { taskId })
       })

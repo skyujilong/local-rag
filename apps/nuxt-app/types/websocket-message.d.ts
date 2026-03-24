@@ -16,12 +16,7 @@ export type WebSocketMessageType =
   // 任务消息
   | 'crawler:task:created'
   | 'crawler:task:updated'
-  | 'crawler:task:deleted'
-  // 页面状态消息
-  | 'crawler:page:status'
-  | 'crawler:page:connected'
-  | 'crawler:page:navigated'
-  | 'crawler:page:unloading';
+  | 'crawler:task:deleted';
 
 /**
  * 基础 WebSocket 消息接口
@@ -64,19 +59,6 @@ export interface CrawlerTaskMessage {
 }
 
 /**
- * 爬虫页面状态消息
- */
-export interface CrawlerPageStatusMessage {
-  type: 'crawler:page:status' | 'crawler:page:connected' | 'crawler:page:navigated' | 'crawler:page:unloading';
-  data: {
-    taskId: string;
-    status?: string;
-    url: string;
-    timestamp?: number;
-  };
-}
-
-/**
  * 错误消息
  */
 export interface ErrorMessage {
@@ -92,5 +74,4 @@ export type TypedWebSocketMessage =
   | PingMessage
   | PongMessage
   | CrawlerTaskMessage
-  | CrawlerPageStatusMessage
   | ErrorMessage;

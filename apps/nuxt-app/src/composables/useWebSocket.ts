@@ -23,7 +23,6 @@ export type WebSocketMessageType =
   | 'crawler:task:created'
   | 'crawler:task:updated'
   | 'crawler:task:deleted'
-  | 'crawler:page:status'
   | 'connected'
   | 'ping'
   | 'pong'
