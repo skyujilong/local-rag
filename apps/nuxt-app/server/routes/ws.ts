@@ -82,6 +82,10 @@ export default defineWebSocketHandler({
   },
 
   open(peer: WebSocketPeer) {
+    logger.info('WebSocket open 事件触发', {
+      readyState: peer.readyState,
+      url: peer.url,
+    });
     wsManager.addClient(peer);
     // 发送欢迎消息
     peer.send(JSON.stringify({

@@ -18,9 +18,10 @@ interface ApiResponse<T> {
   }
 }
 
-const baseURL = '/api' as const
-
 export function useCrawlerApi() {
+  const config = useRuntimeConfig()
+  // 使用相对路径，自动跟随当前页面的 host 和 port
+  const baseURL = config.public.apiBaseUrl || '/api'
   /**
    * 获取任务列表
    */

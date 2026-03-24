@@ -60,6 +60,13 @@ export default defineNuxtConfig({
       watch: {
         ignored: ['**/data/**', '**/logs/**', '**/dist/**'],
       },
+      // WebSocket 代理配置
+      proxy: {
+        '/_ws': {
+          target: 'ws://localhost:3000',
+          ws: true,
+        },
+      },
     },
     // 让 Vite 直接处理 @local-rag/shared 的源码，实现热重载
     ssr: {
@@ -103,6 +110,8 @@ export default defineNuxtConfig({
     experimental: {
       websocket: true,
     },
+    // 强制单进程模式，解决 WebSocket 多进程隔离问题
+    workers: 1,
     // 使用 Node.js runtime（兼容 Playwright 和 LlamaIndex）
     routeRules: {
       '/api/**': { cache: { none: true } },
@@ -116,12 +125,11 @@ export default defineNuxtConfig({
 
     // 公共配置（客户端可访问）
     public: {
-      // WebSocket 服务器 URL
-      // 留空则使用默认值: ws://localhost:3000/_ws/ws
-      // Nitro WebSocket 路由格式: /_ws/{route} 其中 route 是 server/routes/ 下的文件名
-      wsUrl: '',
-      // WebSocket 主机配置（用于服务端构建 WebSocket URL）
-      wsHost: process.env.NUXT_PUBLIC_WS_HOST || 'localhost:3000',
+      // 统一使用相对路径，自动使用当前页面的协议、主机和端口
+      // 用户只需访问 http://localhost:3000，API 和 WebSocket 会自动连接到正确的地址
+      // 生产环境可通过环境变量覆盖
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || '',
+      wsBaseUrl: process.env.NUXT_PUBLIC_WS_BASE_URL || '',
     },
   },
 })

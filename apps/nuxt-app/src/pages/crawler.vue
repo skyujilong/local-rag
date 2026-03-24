@@ -238,11 +238,20 @@ const tasksList = computed(() => {
 });
 
 const currentTask = computed(() => {
-  return tasksList.value.find((t: CrawlerTask) =>
+  const task = tasksList.value.find((t: CrawlerTask) =>
     t.status === 'running' ||
     t.status === 'browser_ready' ||
     t.status === 'waiting_confirm'
   );
+  if (import.meta.dev) {
+    console.log('[DEBUG] currentTask 计算', {
+      taskId: task?.id,
+      status: task?.status,
+      tasksListLength: tasksList.value.length,
+      allTasksStatus: tasksList.value.map(t => ({ id: t.id, status: t.status })),
+    });
+  }
+  return task;
 });
 
 // 监听当前任务变化（深度监听整个对象）
