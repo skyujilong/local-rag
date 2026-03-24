@@ -162,6 +162,17 @@
       </n-grid-item>
 
       <n-grid-item :span="6">
+        <n-card title="WebSocket 连接状态" style="margin-bottom: 20px;">
+          <n-space vertical>
+            <n-tag :type="crawlerStore.wsConnected ? 'success' : 'error'">
+              {{ crawlerStore.wsConnected ? '已连接' : '未连接' }}
+            </n-tag>
+            <n-button size="small" @click="crawlerStore.connectWebSocket()">
+              重新连接
+            </n-button>
+          </n-space>
+        </n-card>
+
         <n-card title="已保存的会话">
           <n-empty v-if="crawlerStore.sessions.length === 0" description="暂无会话" />
           <div v-else class="sessions">
@@ -444,15 +455,28 @@ function formatDate(dateValue: string | Date) {
   return new Date(dateValue).toLocaleString('zh-CN');
 }
 
-onMounted(() => {
+onMounted(async () => {
+  console.log('[CrawlerView] 组件已挂载，开始初始化 WebSocket');
+
+  // 先连接 WebSocket，确保连接建立后再注册处理器
+  crawlerStore.connectWebSocket();
+
+  // 等待一小段时间让 WebSocket 连接建立
+  await new Promise(resolve => setTimeout(resolve, 100));
+
   // 注册 WebSocket 处理器
   crawlerStore.registerHandlers();
-  // 连接 WebSocket
-  crawlerStore.connectWebSocket();
+
   // 加载会话列表
   crawlerStore.loadSessions();
-  // 不在挂载时加载任务，由 WebSocket 实时同步
-  // crawlerStore.loadTasks();
+
+  // 加载任务列表（确保即使 WebSocket 连接失败也能看到任务）
+  await crawlerStore.loadTasks();
+
+  console.log('[CrawlerView] WebSocket 初始化完成', {
+    wsConnected: crawlerStore.wsConnected,
+    tasksCount: crawlerStore.tasks.length,
+  });
 });
 
 onUnmounted(() => {

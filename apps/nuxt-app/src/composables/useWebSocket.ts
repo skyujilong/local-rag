@@ -36,6 +36,20 @@ const maxReconnectAttempts = 5
 const reconnectDelay = 3000
 
 /**
+ * 获取 WebSocket readyState 的文本描述
+ */
+function getReadyStateText(state?: number): string {
+  if (state === undefined) return 'undefined'
+  switch (state) {
+    case WebSocket.CONNECTING: return 'CONNECTING (0)'
+    case WebSocket.OPEN: return 'OPEN (1)'
+    case WebSocket.CLOSING: return 'CLOSING (2)'
+    case WebSocket.CLOSED: return 'CLOSED (3)'
+    default: return `UNKNOWN (${state})`
+  }
+}
+
+/**
  * 连接 WebSocket
  */
 function connect() {
@@ -60,16 +74,33 @@ function connect() {
   logger.info('正在连接 WebSocket', { wsUrl })
 
   try {
+    logger.info('创建 WebSocket 连接', { wsUrl, readyState: 'CONNECTING' })
     globalWs.value = new WebSocket(wsUrl)
 
+    // 添加连接超时检查
+    const connectionTimeout = setTimeout(() => {
+      if (globalWs.value && globalWs.value.readyState !== WebSocket.OPEN) {
+        logger.error('WebSocket 连接超时', {
+          url: wsUrl,
+          readyState: globalWs.value.readyState,
+          readyStateText: getReadyStateText(globalWs.value.readyState),
+        })
+      }
+    }, 5000) // 5 秒超时
+
     globalWs.value.onopen = () => {
-      logger.info('WebSocket 已连接')
+      clearTimeout(connectionTimeout)
+      logger.info('WebSocket 已连接', {
+        url: wsUrl,
+        readyState: globalWs.value?.readyState,
+        readyStateText: getReadyStateText(globalWs.value?.readyState),
+      })
       globalIsConnected.value = true
       globalReconnectAttempts.value = 0
     }
 
     globalWs.value.onclose = (event: CloseEvent) => {
-      logger.info('WebSocket 已断开', { code: event.code, reason: event.reason })
+      logger.info('WebSocket 已断开', { code: event.code, reason: event.reason, wasClean: event.wasClean })
       globalIsConnected.value = false
 
       // 尝试重连
@@ -83,7 +114,7 @@ function connect() {
     }
 
     globalWs.value.onerror = (error: Event) => {
-      logger.error('WebSocket 错误', error)
+      logger.error('WebSocket 错误', { type: error.type, target: globalWs.value?.url })
     }
 
     globalWs.value.onmessage = (event: MessageEvent<string>) => {
@@ -177,5 +208,11 @@ export function useWebSocket() {
     disconnect,
     on,
     off,
+    // 添加调试方法
+    getConnectionInfo: () => ({
+      isConnected: globalIsConnected.value,
+      readyState: globalWs.value ? getReadyStateText(globalWs.value.readyState) : 'no connection',
+      url: globalWs.value?.url || 'no url',
+    }),
   }
 }

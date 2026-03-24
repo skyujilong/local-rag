@@ -33,6 +33,8 @@ import {
   NSwitch,
   NTag,
   NThing,
+  NRadioGroup,
+  NRadio
 } from 'naive-ui'
 
 export default defineNuxtPlugin((nuxtApp: NuxtApp) => {
@@ -77,4 +79,6 @@ export default defineNuxtPlugin((nuxtApp: NuxtApp) => {
   nuxtApp.vueApp.component('NSwitch', NSwitch)
   nuxtApp.vueApp.component('NTag', NTag)
   nuxtApp.vueApp.component('NThing', NThing)
+  nuxtApp.vueApp.component('NRadioGroup', NRadioGroup)
+  nuxtApp.vueApp.component('NRadio', NRadio)
 })

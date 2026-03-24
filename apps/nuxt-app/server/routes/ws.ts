@@ -13,7 +13,10 @@ class WebSocketManager {
 
   addClient(client: any) {
     this.clients.add(client)
-    logger.info('WebSocket 客户端已连接', { clientCount: this.clients.size })
+    logger.info('WebSocket 客户端已连接', {
+      clientCount: this.clients.size,
+      readyState: client.readyState,
+    })
   }
 
   removeClient(client: any) {
@@ -30,6 +33,14 @@ class WebSocketManager {
         status: (data as any).status,
         clientCount: this.clients.size,
       })
+
+      // 如果没有客户端连接，记录警告
+      if (this.clients.size === 0) {
+        logger.warn('WebSocket 没有连接的客户端，消息无法发送', {
+          type,
+          taskId: (data as any).id,
+        })
+      }
     }
 
     const failedClients: Set<any> = new Set()
@@ -59,6 +70,10 @@ const wsManager = new WebSocketManager()
 
 // 暴露给全局
 ;(globalThis as any).__wsManager = wsManager
+
+logger.info('WebSocket 路由已加载', {
+  hasGlobalWsManager: !!(globalThis as any).__wsManager,
+})
 
 // 导出 WebSocket 处理器
 // @ts-ignore - Nitro WebSocket experimental API

@@ -32,6 +32,12 @@ export const useCrawlerStore = defineStore('crawler', () => {
   watch(isConnected, (connected) => {
     wsConnected.value = connected;
     logger.info('WebSocket 连接状态变化', { connected });
+
+    // 如果连接成功，记录连接信息
+    if (connected) {
+      const ws = (useWebSocket() as any).getConnectionInfo?.();
+      logger.info('WebSocket 连接信息', ws);
+    }
   });
 
   /**
