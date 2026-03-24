@@ -60,13 +60,6 @@ export default defineNuxtConfig({
       watch: {
         ignored: ['**/data/**', '**/logs/**', '**/dist/**'],
       },
-      // WebSocket 代理配置
-      proxy: {
-        '/_ws': {
-          target: 'ws://localhost:3000',
-          ws: true,
-        },
-      },
     },
     // 让 Vite 直接处理 @local-rag/shared 的源码，实现热重载
     ssr: {

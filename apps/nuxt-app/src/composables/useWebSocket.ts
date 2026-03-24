@@ -133,7 +133,7 @@ function connect() {
   // 如果配置了 wsBaseUrl 则使用，否则使用相对路径构建
   let wsUrl = runtimeConfig.public.wsBaseUrl || ''
   if (!wsUrl) {
-    wsUrl = `${protocol}//${hostname}:${port}/_ws/ws`
+    wsUrl = `${protocol}//${hostname}:${port}/ws`
   }
 
   // 验证 WebSocket URL 格式
