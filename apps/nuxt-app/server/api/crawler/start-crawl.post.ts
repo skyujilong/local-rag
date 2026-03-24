@@ -15,15 +15,57 @@ const logger = createLogger(LogSystem.API, 'crawler/start-crawl')
 
 export default defineEventHandler(async (event) => {
   try {
-    const body = await readBody<StartCrawlBody>(event)
-    const { taskId } = body
+    // 使用多种方法尝试读取 body（参考 tasks/index.ts 的做法）
+    let body: StartCrawlBody | undefined
 
-    if (!taskId) {
+    // 方法1: 尝试 readBody
+    try {
+      const result = await readBody<StartCrawlBody>(event)
+      if (result && Object.keys(result).length > 0) {
+        body = result
+      }
+    } catch (e) {
+      logger.debug('readBody 失败', { errorMessage: (e as Error).message })
+    }
+
+    // 方法2: 如果 readBody 返回空，尝试 readRawBody
+    if (!body || !body.taskId) {
+      try {
+        const rawBody = await readRawBody(event, 'utf-8')
+        if (rawBody) {
+          body = JSON.parse(rawBody) as StartCrawlBody
+        }
+      } catch (e) {
+        logger.debug('readRawBody 失败', { errorMessage: (e as Error).message })
+      }
+    }
+
+    // 方法3: 如果仍然为空，尝试从 Node.js req 读取
+    if (!body || !body.taskId) {
+      if (event.node?.req) {
+        try {
+          const chunks: Buffer[] = []
+          for await (const chunk of event.node.req) {
+            chunks.push(chunk)
+          }
+          const rawBody = Buffer.concat(chunks).toString('utf-8')
+          if (rawBody) {
+            body = JSON.parse(rawBody) as StartCrawlBody
+          }
+        } catch (e) {
+          logger.error('req 流读取失败', e as Error)
+        }
+      }
+    }
+
+    if (!body || !body.taskId) {
       throw createError({
         statusCode: 400,
         message: '请提供任务 ID',
       })
     }
+
+    const { taskId } = body
 
     const task = activeTasks.get(taskId)
     if (!task) {

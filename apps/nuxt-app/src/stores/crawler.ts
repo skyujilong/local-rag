@@ -18,6 +18,7 @@ const logger = {
 
 let createdHandlerId: symbol | null = null;
 let updatedHandlerId: symbol | null = null;
+let pageStatusHandlerId: symbol | null = null;
 
 export const useCrawlerStore = defineStore('crawler', () => {
   const tasks = ref<CrawlerTask[]>([]);
@@ -45,7 +46,7 @@ export const useCrawlerStore = defineStore('crawler', () => {
    * 只注册一次，避免重复处理消息
    */
   function registerHandlers() {
-    if (createdHandlerId && updatedHandlerId) {
+    if (createdHandlerId && updatedHandlerId && pageStatusHandlerId) {
       logger.debug('WebSocket 处理器已注册，跳过重复注册');
       return;
     }
@@ -53,6 +54,7 @@ export const useCrawlerStore = defineStore('crawler', () => {
     logger.info('注册 WebSocket 处理器');
     createdHandlerId = on('crawler:task:created', handleTaskUpdate);
     updatedHandlerId = on('crawler:task:updated', handleTaskUpdate);
+    pageStatusHandlerId = on('crawler:page:status', handlePageStatus);
   }
 
   /**
@@ -67,6 +69,10 @@ export const useCrawlerStore = defineStore('crawler', () => {
     if (updatedHandlerId) {
       off('crawler:task:updated', updatedHandlerId);
       updatedHandlerId = null;
+    }
+    if (pageStatusHandlerId) {
+      off('crawler:page:status', pageStatusHandlerId);
+      pageStatusHandlerId = null;
     }
   }
 
@@ -124,6 +130,36 @@ export const useCrawlerStore = defineStore('crawler', () => {
   }
 
   /**
+   * 处理爬虫页面状态更新
+   */
+  function handlePageStatus(status: { taskId: string; status: string; url: string; timestamp?: number }) {
+    logger.info('爬虫页面状态更新', {
+      taskId: status.taskId,
+      pageStatus: status.status,
+      url: status.url,
+    })
+
+    // 可以在任务上添加页面状态信息
+    const task = tasks.value.find(t => t.id === status.taskId)
+    if (task) {
+      // 更新任务的页面状态元数据
+      task.metadata = task.metadata || {}
+      task.metadata.pageStatus = status.status
+      task.metadata.pageUrl = status.url
+      if (status.timestamp) {
+        task.metadata.lastPageUpdate = new Date(status.timestamp)
+      }
+      task.lastUpdatedAt = new Date()
+
+      logger.debug('任务页面状态已更新', {
+        taskId: task.id,
+        pageStatus: status.status,
+        pageUrl: status.url,
+      })
+    }
+  }
+
+  /**
    * 加载任务列表
    */
   async function loadTasks() {
@@ -131,12 +167,17 @@ export const useCrawlerStore = defineStore('crawler', () => {
     const crawlerApi = useCrawlerApi();
     try {
       const response = await crawlerApi.getTasks();
-      if (response.success && response.data) {
+      if (response.success && Array.isArray(response.data)) {
         tasks.value = response.data;
         logger.info('任务列表加载完成', { count: tasks.value.length });
+      } else {
+        // 确保始终是数组
+        tasks.value = [];
+        logger.warn('任务列表 API 返回非数组数据', { response });
       }
     } catch (error) {
       logger.error('加载任务列表失败', error as Error);
+      tasks.value = [];
       throw error;
     } finally {
       loading.value = false;

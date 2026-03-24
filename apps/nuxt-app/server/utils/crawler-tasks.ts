@@ -5,11 +5,7 @@
 import type { CrawlerTask, CrawlerTaskProgress } from '@local-rag/shared/types'
 import { createLogger, LogSystem } from '@local-rag/shared'
 import { activePages, clearXPathTimeout } from '../crawler/crawler-service.js'
-
-type WsManager = {
-  broadcast: (event: string, payload: unknown) => void
-  getClientCount: () => number
-}
+import { getWebSocketManager } from './websocket-manager'
 
 const logger = createLogger(LogSystem.API, 'crawler-tasks')
 
@@ -43,13 +39,12 @@ export function updateTaskProgress(
  * 广播任务更新（通过 WebSocket）
  */
 export function broadcastTaskUpdate(task: CrawlerTask): void {
-  const wsManager = (globalThis as typeof globalThis & { __wsManager?: WsManager }).__wsManager
+  const wsManager = getWebSocketManager()
 
   logger.debug('广播任务更新', {
     taskId: task.id,
     status: task.status,
-    hasWsManager: !!wsManager,
-    clientCount: wsManager ? wsManager.getClientCount?.() : 0,
+    clientCount: wsManager.getClientCount(),
   })
 
   // 创建干净的副本用于广播
@@ -80,11 +75,7 @@ export function broadcastTaskUpdate(task: CrawlerTask): void {
   }
 
   // 使用 WebSocket 管理器广播
-  if (wsManager) {
-    wsManager.broadcast('crawler:task:updated', taskCopy)
-  } else {
-    logger.warn('wsManager 不存在，无法广播任务更新')
-  }
+  wsManager.broadcast('crawler:task:updated', taskCopy)
 }
 
 /**

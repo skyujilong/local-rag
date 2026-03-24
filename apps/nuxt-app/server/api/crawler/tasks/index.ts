@@ -208,6 +208,7 @@ async function runCrawlerTask(taskId: string) {
 
     // 执行爬虫任务（只打开浏览器，不自动爬取）
     const result = await crawl(task.url, {
+      taskId,
       contentXPath: task.contentXPath,
       onProgress: (documentCount) => {
         task.documentCount = documentCount

@@ -15,6 +15,7 @@ import { extractDomain } from '@local-rag/shared/utils';
 import type { CrawlerSession } from '@local-rag/shared/types';
 import { getCrawlerConfig } from '@local-rag/config/crawler';
 import { URL } from 'node:url';
+import { createWebSocketInjectScript } from './websocket-injector.js';
 
 const logger = createLogger(LogSystem.API, 'crawler');
 
@@ -45,7 +46,7 @@ function validateUrl(url: string): void {
 /**
  * 创建带会话的浏览器上下文
  */
-async function createContextWithSession(domain: string, browser: Browser): Promise<BrowserContext> {
+async function createContextWithSession(domain: string, browser: Browser, taskId?: string): Promise<BrowserContext> {
   const config = getCrawlerConfig();
   const context = await browser.newContext({
     viewport: config.browser.viewport,
@@ -66,10 +67,25 @@ async function createContextWithSession(domain: string, browser: Browser): Promi
     logger.info('会话已加载到上下文', { domain });
   }
 
+  // 注入 WebSocket 客户端脚本
+  if (taskId) {
+    // 根据环境动态构建 WebSocket URL
+    const isProduction = process.env.NODE_ENV === 'production';
+    const wsProtocol = isProduction ? 'wss:' : 'ws:';
+    // 使用环境变量或默认值
+    const wsHost = process.env.NUXT_PUBLIC_WS_HOST || process.env.WS_HOST || 'localhost:3000';
+    const wsUrl = `${wsProtocol}//${wsHost}/_ws/ws`;
+
+    const wsScript = createWebSocketInjectScript({ wsUrl, taskId });
+    await context.addInitScript(wsScript);
+    logger.info('WebSocket 客户端脚本已注入', { taskId, domain, wsUrl, isProduction });
+  }
+
   return context;
 }
 
 export interface CrawlOptions {
+  taskId?: string;  // 任务 ID，用于 WebSocket 注入
   contentXPath?: string;  // 内容提取 XPath（可选）
   onProgress?: (documentCount: number) => void;
   onBrowserReady?: (page: Page) => void;
@@ -115,7 +131,7 @@ export async function crawl(url: string, options: CrawlOptions = {}): Promise<Cr
     });
 
     // 创建带会话的上下文
-    const context = await createContextWithSession(domain, browser);
+    const context = await createContextWithSession(domain, browser, options.taskId);
     page = await context.newPage();
     logger.info('浏览器已启动', { mode: 'visible' });
 

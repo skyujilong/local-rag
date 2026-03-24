@@ -155,7 +155,7 @@
         <n-card title="任务列表" style="margin-top: 20px;">
           <n-data-table
             :columns="taskColumns"
-            :data="crawlerStore.tasks"
+            :data="tasksList"
             :row-key="(row: any) => row.id"
           />
         </n-card>
@@ -227,8 +227,18 @@ const crawlerForm = ref({
 const confirming = ref(false);
 const draftId = ref('');
 
+// 安全的任务列表，确保始终是数组
+const tasksList = computed(() => {
+  const tasks = crawlerStore.tasks || [];
+  if (!Array.isArray(tasks)) {
+    console.warn('[CrawlerView] crawlerStore.tasks 不是数组:', tasks);
+    return [];
+  }
+  return tasks;
+});
+
 const currentTask = computed(() => {
-  return crawlerStore.tasks.find((t: CrawlerTask) =>
+  return tasksList.value.find((t: CrawlerTask) =>
     t.status === 'running' ||
     t.status === 'browser_ready' ||
     t.status === 'waiting_confirm'

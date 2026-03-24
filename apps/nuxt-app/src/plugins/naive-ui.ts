@@ -34,7 +34,10 @@ import {
   NTag,
   NThing,
   NRadioGroup,
-  NRadio
+  NRadio,
+  NCollapse,
+  NCollapseItem,
+  NInputNumber
 } from 'naive-ui'
 
 export default defineNuxtPlugin((nuxtApp: NuxtApp) => {
@@ -81,4 +84,7 @@ export default defineNuxtPlugin((nuxtApp: NuxtApp) => {
   nuxtApp.vueApp.component('NThing', NThing)
   nuxtApp.vueApp.component('NRadioGroup', NRadioGroup)
   nuxtApp.vueApp.component('NRadio', NRadio)
+  nuxtApp.vueApp.component('NCollapse', NCollapse)
+  nuxtApp.vueApp.component('NCollapseItem', NCollapseItem)
+  nuxtApp.vueApp.component('NInputNumber', NInputNumber)
 })

@@ -5,6 +5,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "typeRoots": ["./types", "./node_modules/@types"],
     "paths": {
       "@/*": ["./src/*"],
       "@local-rag/config": ["../../packages/config/src"],
@@ -16,7 +17,8 @@
   "include": [
     "**/*.ts",
     "**/*.vue",
-    ".nuxt/types/**/*.ts"
+    ".nuxt/types/**/*.ts",
+    "types/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",

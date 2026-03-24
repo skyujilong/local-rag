@@ -120,6 +120,8 @@ export default defineNuxtConfig({
       // 留空则使用默认值: ws://localhost:3000/_ws/ws
       // Nitro WebSocket 路由格式: /_ws/{route} 其中 route 是 server/routes/ 下的文件名
       wsUrl: '',
+      // WebSocket 主机配置（用于服务端构建 WebSocket URL）
+      wsHost: process.env.NUXT_PUBLIC_WS_HOST || 'localhost:3000',
     },
   },
 })
