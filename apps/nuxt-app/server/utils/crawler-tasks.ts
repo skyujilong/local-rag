@@ -9,8 +9,17 @@ import { getWebSocketManager } from './websocket-manager'
 
 const logger = createLogger(LogSystem.API, 'crawler-tasks')
 
-// 存储活跃的任务
-export const activeTasks = new Map<string, CrawlerTask>()
+// 使用 globalThis 存储活跃任务，防止 Nitro 热重载时数据丢失
+const ACTIVE_TASKS_KEY = '__local_rag_active_tasks__'
+
+// 初始化 globalThis 中的 Map
+if (!(ACTIVE_TASKS_KEY in globalThis)) {
+  (globalThis as any)[ACTIVE_TASKS_KEY] = new Map<string, CrawlerTask>()
+  logger.info('📦 [crawler-tasks] 初始化 globalThis activeTasks Map')
+}
+
+// 导出对 globalThis 中 Map 的引用
+export const activeTasks = (globalThis as any)[ACTIVE_TASKS_KEY] as Map<string, CrawlerTask>
 
 // 爬虫配置常量
 export const CRAWLER_CONFIG = {
