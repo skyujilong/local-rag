@@ -4,6 +4,7 @@
  */
 
 import { createLogger, LogSystem } from '@local-rag/shared';
+import type { CrawlerTask } from '@local-rag/shared/types';
 
 const logger = createLogger(LogSystem.API, 'websocket-manager');
 
@@ -15,11 +16,19 @@ export interface WebSocketPeer {
   url?: string;
 }
 
+// 状态快照接口
+interface StateSnapshot {
+  tasks: CrawlerTask[];
+  timestamp: number;
+  version: number;
+}
+
 /**
  * WebSocket 客户端管理器
  */
 class WebSocketManager {
   private clients = new Set<WebSocketPeer>();
+  private latestSnapshot: StateSnapshot | null = null;
 
   addClient(client: WebSocketPeer) {
     this.clients.add(client);
@@ -27,6 +36,54 @@ class WebSocketManager {
       clientCount: this.clients.size,
       readyState: client.readyState,
     });
+
+    // 客户端连接时推送最新状态
+    this.pushLatestState(client);
+  }
+
+  /**
+   * 更新状态快照
+   * 每次任务状态变化时调用
+   */
+  updateSnapshot(tasks: CrawlerTask[]) {
+    this.latestSnapshot = {
+      tasks: tasks.map(t => ({ ...t })), // 深拷贝
+      timestamp: Date.now(),
+      version: (this.latestSnapshot?.version || 0) + 1,
+    };
+
+    logger.debug('任务快照已更新', {
+      taskCount: tasks.length,
+      version: this.latestSnapshot.version,
+    });
+  }
+
+  /**
+   * 推送最新状态给指定客户端
+   * 在客户端连接/重连时调用
+   */
+  private pushLatestState(client: WebSocketPeer) {
+    if (!this.latestSnapshot) {
+      logger.debug('无状态快照可推送');
+      return;
+    }
+
+    try {
+      const message = JSON.stringify({
+        type: 'state:sync',
+        data: this.latestSnapshot,
+      });
+
+      client.send(message);
+
+      logger.info('📤 [WS Manager] 推送最新状态给客户端', {
+        version: this.latestSnapshot.version,
+        taskCount: this.latestSnapshot.tasks.length,
+        clientCount: this.clients.size,
+      });
+    } catch (error) {
+      logger.error('推送状态失败', error as Error);
+    }
   }
 
   removeClient(client: WebSocketPeer) {

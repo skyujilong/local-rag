@@ -137,36 +137,8 @@ export default defineEventHandler(async (event) => {
         },
       }
 
-      // 清理所有旧的 waiting_confirm 任务（用户可能没有确认就创建了新任务）
-      let cancelledCount = 0
-      for (const [oldTaskId, oldTask] of activeTasks.entries()) {
-        if (oldTask.status === 'waiting_confirm' && oldTaskId !== taskId) {
-          logger.info('⚠️ [CLEANUP] 清理旧的等待确认任务', {
-            oldTaskId,
-            oldTaskUrl: oldTask.url,
-            newTaskId: taskId,
-            newTaskUrl: url,
-            oldTaskStatus: oldTask.status,
-            oldTaskCreatedAt: oldTask.createdAt,
-            oldTaskLastUpdatedAt: oldTask.lastUpdatedAt,
-          })
-          oldTask.status = 'cancelled'
-          oldTask.error = '用户创建了新任务'
-          oldTask.completedAt = new Date()
-          oldTask.lastUpdatedAt = new Date()
-          broadcastTaskUpdate(oldTask)
-          cancelledCount++
-          // 延迟清理，确保消息已发送
-          setTimeout(() => cleanupTask(oldTaskId), 500)
-        }
-      }
-      if (cancelledCount > 0) {
-        logger.warn(`⚠️ [CLEANUP] 已取消 ${cancelledCount} 个旧的 waiting_confirm 任务`, {
-          newTaskId: taskId,
-          newTaskUrl: url,
-        })
-      }
-
+      // 移除自动清理逻辑 - 允许多个 waiting_confirm 任务共存
+      // 前端会显示最新的等待确认任务
       activeTasks.set(taskId, task)
 
       // 广播任务创建

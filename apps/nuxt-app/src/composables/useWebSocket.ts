@@ -23,6 +23,7 @@ export type WebSocketMessageType =
   | 'crawler:task:created'
   | 'crawler:task:updated'
   | 'crawler:task:deleted'
+  | 'state:sync'
   | 'connected'
   | 'ping'
   | 'pong'
@@ -246,6 +247,16 @@ function connect() {
         // 显式处理 connected 消息
         if (message.type === 'connected') {
           logger.info('服务器确认连接', message.data)
+          return
+        }
+
+        // 处理状态同步消息
+        if (message.type === 'state:sync') {
+          logger.info('📥 [WS] 收到服务器状态同步', {
+            version: (message.data as any)?.version,
+            taskCount: (message.data as any)?.tasks?.length,
+          })
+          handleMessage(message)  // 继续分发到业务处理器
           return
         }
 

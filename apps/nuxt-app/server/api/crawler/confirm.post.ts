@@ -45,8 +45,8 @@ export default defineEventHandler(async (event) => {
         }))
       })
       throw createError({
-        statusCode: 400,
-        statusMessage: '任务不在等待确认状态',
+        statusCode: 409, // Conflict - 状态冲突
+        statusMessage: '任务状态已变更，请刷新页面查看最新状态',
       })
     }
 

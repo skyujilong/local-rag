@@ -76,6 +76,10 @@ export function broadcastTaskUpdate(task: CrawlerTask): void {
 
   // 使用 WebSocket 管理器广播
   wsManager.broadcast('crawler:task:updated', taskCopy)
+
+  // 更新状态快照，供重连客户端使用
+  const allTasks = Array.from(activeTasks.values())
+  wsManager.updateSnapshot(allTasks)
 }
 
 /**

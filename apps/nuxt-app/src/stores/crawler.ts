@@ -18,6 +18,7 @@ const logger = {
 
 let createdHandlerId: symbol | null = null;
 let updatedHandlerId: symbol | null = null;
+let stateSyncHandlerId: symbol | null = null;
 
 export const useCrawlerStore = defineStore('crawler', () => {
   const tasks = ref<CrawlerTask[]>([]);
@@ -38,12 +39,19 @@ export const useCrawlerStore = defineStore('crawler', () => {
       const ws = (useWebSocket() as any).getConnectionInfo?.();
       logger.info('WebSocket 连接信息', ws);
 
-      // 如果是从断开状态重连，重新加载任务列表以同步状态
+      // 如果是从断开状态重连，等待服务器推送最新状态
       if (previousConnected === false) {
-        logger.info('🔄 WebSocket 重连成功，重新加载任务列表以同步状态');
-        loadTasks().catch((error) => {
-          logger.warn('重连后加载任务列表失败', error);
-        });
+        logger.info('🔄 WebSocket 重连成功，等待服务器推送最新状态');
+
+        // 设置超时保护：如果 3 秒内没有收到状态同步推送，主动拉取
+        setTimeout(async () => {
+          const currentState = tasks.value;
+          // 如果任务列表为空或者没有变化，说明可能没有收到状态推送
+          if (currentState.length === 0) {
+            logger.warn('⚠️ 未收到服务器状态推送，主动拉取');
+            await loadTasks();
+          }
+        }, 3000);
       }
     }
   });
@@ -53,7 +61,7 @@ export const useCrawlerStore = defineStore('crawler', () => {
    * 只注册一次，避免重复处理消息
    */
   function registerHandlers() {
-    if (createdHandlerId && updatedHandlerId) {
+    if (createdHandlerId && updatedHandlerId && stateSyncHandlerId) {
       logger.debug('WebSocket 处理器已注册，跳过重复注册');
       return;
     }
@@ -61,9 +69,11 @@ export const useCrawlerStore = defineStore('crawler', () => {
     logger.info('📋 [Store] 注册 WebSocket 处理器');
     createdHandlerId = on('crawler:task:created', handleTaskUpdate);
     updatedHandlerId = on('crawler:task:updated', handleTaskUpdate);
+    stateSyncHandlerId = on('state:sync', handleStateSync);
     logger.info('✅ [Store] 处理器注册完成', {
       createdId: createdHandlerId.toString(),
       updatedId: updatedHandlerId.toString(),
+      stateSyncId: stateSyncHandlerId.toString(),
     });
   }
 
@@ -79,6 +89,10 @@ export const useCrawlerStore = defineStore('crawler', () => {
     if (updatedHandlerId) {
       off('crawler:task:updated', updatedHandlerId);
       updatedHandlerId = null;
+    }
+    if (stateSyncHandlerId) {
+      off('state:sync', stateSyncHandlerId);
+      stateSyncHandlerId = null;
     }
   }
 
@@ -132,6 +146,30 @@ export const useCrawlerStore = defineStore('crawler', () => {
     }
 
     logger.info('[DEBUG] ===== handleTaskUpdate 结束 =====');
+  }
+
+  /**
+   * 处理状态同步消息
+   * 当服务器推送完整状态时调用
+   */
+  function handleStateSync(serverTasks: CrawlerTask[]) {
+    logger.info('🔄 [Store] 处理服务器状态同步', {
+      serverTaskCount: serverTasks?.length || 0,
+      localTaskCount: tasks.value.length,
+    });
+
+    if (!Array.isArray(serverTasks)) {
+      logger.warn('服务器状态格式错误', { serverTasks });
+      return;
+    }
+
+    // 合并策略：服务器状态完全覆盖本地状态
+    // 因为服务器是唯一数据源
+    tasks.value = serverTasks;
+
+    logger.info('✅ [Store] 状态同步完成', {
+      taskCount: tasks.value.length,
+    });
   }
 
   /**
