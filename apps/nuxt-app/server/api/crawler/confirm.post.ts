@@ -14,8 +14,36 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event) || {}
     const { taskId, confirmed } = body
 
+    logger.info('收到确认请求', { taskId, confirmed, activeTasksCount: activeTasks.size })
+
     const task = activeTasks.get(taskId)
-    if (!task || task.status !== 'waiting_confirm') {
+    if (!task) {
+      logger.error('任务不存在', {
+        taskId,
+        activeTasksIds: Array.from(activeTasks.keys()),
+        activeTasksStatuses: Array.from(activeTasks.entries()).map(([id, t]) => ({ id, status: t.status }))
+      })
+      throw createError({
+        statusCode: 400,
+        statusMessage: '任务不存在',
+      })
+    }
+
+    if (task.status !== 'waiting_confirm') {
+      logger.error('任务状态不正确', {
+        taskId,
+        currentStatus: task.status,
+        expectedStatus: 'waiting_confirm',
+        taskUrl: task.url,
+        taskCreatedAt: task.createdAt,
+        taskLastUpdatedAt: task.lastUpdatedAt,
+        allActiveTasks: Array.from(activeTasks.entries()).map(([id, t]) => ({
+          id,
+          status: t.status,
+          url: t.url,
+          createdAt: t.createdAt,
+        }))
+      })
       throw createError({
         statusCode: 400,
         statusMessage: '任务不在等待确认状态',

@@ -238,17 +238,41 @@ const tasksList = computed(() => {
 });
 
 const currentTask = computed(() => {
-  const task = tasksList.value.find((t: CrawlerTask) =>
+  // 过滤出活跃任务（排除已完成、失败、取消的任务）
+  const activeTasks = tasksList.value.filter((t: CrawlerTask) =>
     t.status === 'running' ||
     t.status === 'browser_ready' ||
     t.status === 'waiting_confirm'
   );
+
+  // 按创建时间倒序排列，最新的任务在最前面
+  const sortedTasks = activeTasks.sort((a, b) => {
+    const aTime = new Date(a.createdAt || 0).getTime();
+    const bTime = new Date(b.createdAt || 0).getTime();
+    return bTime - aTime; // 降序，最新的在前
+  });
+
+  // 如果有多个 waiting_confirm 任务，只保留最新的
+  // 这可以防止用户看到旧的未确认任务
+  const waitingConfirmTasks = sortedTasks.filter(t => t.status === 'waiting_confirm');
+  if (waitingConfirmTasks.length > 1) {
+    // 只保留最新的 waiting_confirm 任务
+    const latestWaitingTask = waitingConfirmTasks[0];
+    const otherTasks = sortedTasks.filter(t => t.status !== 'waiting_confirm' || t.id === latestWaitingTask.id);
+    sortedTasks.length = 0;
+    sortedTasks.push(...otherTasks);
+  }
+
+  const task = sortedTasks[0] || null;
+
   if (import.meta.dev) {
     console.log('[DEBUG] currentTask 计算', {
       taskId: task?.id,
       status: task?.status,
       tasksListLength: tasksList.value.length,
-      allTasksStatus: tasksList.value.map(t => ({ id: t.id, status: t.status })),
+      activeTasksCount: activeTasks.length,
+      waitingConfirmCount: waitingConfirmTasks.length,
+      allTasksStatus: tasksList.value.map(t => ({ id: t.id, status: t.status, createdAt: t.createdAt })),
     });
   }
   return task;
@@ -416,6 +440,18 @@ async function confirmContent(confirmed: boolean) {
     message.error('当前没有活动任务');
     return;
   }
+
+  // 详细的调试日志
+  console.log('[DEBUG] confirmContent 被调用', {
+    confirmed,
+    taskId: currentTask.value.id,
+    taskStatus: currentTask.value.status,
+    taskUrl: currentTask.value.url,
+    taskLastUpdatedAt: currentTask.value.lastUpdatedAt,
+    hasPreviewMarkdown: !!currentTask.value.previewMarkdown,
+    previewMarkdownLength: currentTask.value.previewMarkdown?.length || 0,
+  });
+
   try {
     const response = await crawlerStore.confirmContent(currentTask.value.id, confirmed);
     if (confirmed && response?.data?.draftId) {

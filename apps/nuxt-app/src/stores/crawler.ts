@@ -29,14 +29,22 @@ export const useCrawlerStore = defineStore('crawler', () => {
   const { isConnected, on, off, connect: connectWebSocket } = useWebSocket();
 
   // 监听 WebSocket 连接状态
-  watch(isConnected, (connected) => {
+  watch(isConnected, (connected, previousConnected) => {
     wsConnected.value = connected;
-    logger.info('WebSocket 连接状态变化', { connected });
+    logger.info('WebSocket 连接状态变化', { connected, previousConnected });
 
     // 如果连接成功，记录连接信息
     if (connected) {
       const ws = (useWebSocket() as any).getConnectionInfo?.();
       logger.info('WebSocket 连接信息', ws);
+
+      // 如果是从断开状态重连，重新加载任务列表以同步状态
+      if (previousConnected === false) {
+        logger.info('🔄 WebSocket 重连成功，重新加载任务列表以同步状态');
+        loadTasks().catch((error) => {
+          logger.warn('重连后加载任务列表失败', error);
+        });
+      }
     }
   });
 

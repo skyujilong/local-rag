@@ -4,7 +4,7 @@
  */
 import { createError, defineEventHandler, readBody, readRawBody } from 'h3'
 import { createLogger, LogSystem } from '@local-rag/shared'
-import { activeTasks, CRAWLER_CONFIG, updateTaskProgress, broadcastTaskUpdate } from '../../../utils/crawler-tasks'
+import { activeTasks, CRAWLER_CONFIG, updateTaskProgress, broadcastTaskUpdate, cleanupTask } from '../../../utils/crawler-tasks'
 import { crawl, activePages } from '../../../crawler/crawler-service'
 import { ResourceManager, taskQueue } from '../../../crawler/concurrency-controller'
 import type { CrawlerTask } from '@local-rag/shared/types'
@@ -135,6 +135,36 @@ export default defineEventHandler(async (event) => {
         metadata: {
           maxLinks,
         },
+      }
+
+      // 清理所有旧的 waiting_confirm 任务（用户可能没有确认就创建了新任务）
+      let cancelledCount = 0
+      for (const [oldTaskId, oldTask] of activeTasks.entries()) {
+        if (oldTask.status === 'waiting_confirm' && oldTaskId !== taskId) {
+          logger.info('⚠️ [CLEANUP] 清理旧的等待确认任务', {
+            oldTaskId,
+            oldTaskUrl: oldTask.url,
+            newTaskId: taskId,
+            newTaskUrl: url,
+            oldTaskStatus: oldTask.status,
+            oldTaskCreatedAt: oldTask.createdAt,
+            oldTaskLastUpdatedAt: oldTask.lastUpdatedAt,
+          })
+          oldTask.status = 'cancelled'
+          oldTask.error = '用户创建了新任务'
+          oldTask.completedAt = new Date()
+          oldTask.lastUpdatedAt = new Date()
+          broadcastTaskUpdate(oldTask)
+          cancelledCount++
+          // 延迟清理，确保消息已发送
+          setTimeout(() => cleanupTask(oldTaskId), 500)
+        }
+      }
+      if (cancelledCount > 0) {
+        logger.warn(`⚠️ [CLEANUP] 已取消 ${cancelledCount} 个旧的 waiting_confirm 任务`, {
+          newTaskId: taskId,
+          newTaskUrl: url,
+        })
       }
 
       activeTasks.set(taskId, task)
