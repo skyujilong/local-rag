@@ -46,19 +46,19 @@
 
 ### ✅ Issue #1 - 硬编码 WebSocket URL (P0) - 已修复
 
-**原问题**: `server/crawler/crawler-service.ts:72` 硬编码 `ws://localhost:3000/_ws/ws`
+**原问题**: `server/crawler/crawler-service.ts:72` 硬编码 `ws://localhost:3000/ws`
 
 **修复内容**:
 
 ```typescript
 // 修复前 ❌
-const wsUrl = 'ws://localhost:3000/_ws/ws';
+const wsUrl = 'ws://localhost:3000/ws';
 
 // 修复后 ✅
 const isProduction = process.env.NODE_ENV === 'production';
 const wsProtocol = isProduction ? 'wss:' : 'ws:';
 const wsHost = process.env.NUXT_PUBLIC_WS_HOST || process.env.WS_HOST || 'localhost:3000';
-const wsUrl = `${wsProtocol}//${wsHost}/_ws/ws`;
+const wsUrl = `${wsProtocol}//${wsHost}/ws`;
 
 logger.info('WebSocket 客户端脚本配置', {
   wsUrl,
@@ -749,7 +749,7 @@ export type TypedWebSocketMessage =
 
 ```typescript
 // 修复前 ❌
-const wsUrl = runtimeWsUrl || `${protocol}//${window.location.hostname}:${port}/_ws/ws`
+const wsUrl = runtimeWsUrl || `${protocol}//${window.location.hostname}:${port}/ws`
 
 logger.info('正在连接 WebSocket', { wsUrl })
 
@@ -759,7 +759,7 @@ try {
 }
 
 // 修复后 ✅
-const wsUrl = runtimeWsUrl || `${protocol}//${window.location.hostname}:${port}/_ws/ws`
+const wsUrl = runtimeWsUrl || `${protocol}//${window.location.hostname}:${port}/ws`
 
 // 验证 WebSocket URL 格式
 try {
@@ -1108,7 +1108,7 @@ NUXT_PUBLIC_WS_HOST=localhost:3000
 # NODE_ENV=production
 # NUXT_PUBLIC_WS_HOST=your-domain.com
 # 或使用完整 URL
-# NUXT_PUBLIC_WS_URL=wss://your-domain.com/_ws/ws
+# NUXT_PUBLIC_WS_URL=wss://your-domain.com/ws
 
 # 备注：
 # - NUXT_PUBLIC_WS_HOST: WebSocket 服务器地址（不含协议）
@@ -1123,7 +1123,7 @@ NUXT_PUBLIC_WS_HOST=localhost:3000
 
 ### 开发环境
 
-默认使用 `ws://localhost:3000/_ws/ws`，无需额外配置。
+默认使用 `ws://localhost:3000/ws`，无需额外配置。
 
 ### 生产环境
 
@@ -1137,7 +1137,7 @@ NUXT_PUBLIC_WS_HOST=your-domain.com
 或使用完整 URL：
 
 ```bash
-NUXT_PUBLIC_WS_URL=wss://your-domain.com/_ws/ws
+NUXT_PUBLIC_WS_URL=wss://your-domain.com/ws
 ```
 
 ### 环境变量说明
@@ -1377,7 +1377,7 @@ npm run build
 npm run start
 
 # 3. 验证 wss:// 连接
-# 预期：看到 "正在连接 WebSocket wss://your-staging-domain.com/_ws/ws"
+# 预期：看到 "正在连接 WebSocket wss://your-staging-domain.com/ws"
 ```
 
 ### 2. 类型检查测试
@@ -1402,7 +1402,7 @@ console.log(getConnectionInfo())
 // {
 //   isConnected: true,
 //   readyState: "OPEN (1)",
-//   url: "ws://localhost:3000/_ws/ws",
+//   url: "ws://localhost:3000/ws",
 //   heartbeatActive: true,
 //   lastPongTime: "2026-03-24T12:34:56.789Z"
 // }

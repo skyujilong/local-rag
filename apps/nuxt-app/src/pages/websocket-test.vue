@@ -4,7 +4,7 @@
 
     <div class="info-box">
       <strong>测试目的:</strong> 验证前端能否成功连接到后端 WebSocket 服务器<br>
-      <strong>预期 URL:</strong> <code>ws://localhost:3000/_ws/ws</code>
+      <strong>预期 URL:</strong> <code>ws://localhost:3000/ws</code>
     </div>
 
     <div class="test-section">
@@ -127,7 +127,7 @@ function connect() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const hostname = window.location.hostname
   const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
-  const wsUrl = `${protocol}//${hostname}:${port}/_ws/ws`
+  const wsUrl = `${protocol}//${hostname}:${port}/ws`
 
   addLog(`正在连接 WebSocket: ${wsUrl}`, 'info')
 
@@ -209,7 +209,7 @@ function clearLog() {
 onMounted(() => {
   addLog('页面已加载，准备连接 WebSocket', 'info')
   addLog(`当前页面 URL: ${window.location.href}`, 'info')
-  addLog(`WebSocket URL: ws://${window.location.hostname}:${window.location.port || '3000'}/_ws/ws`, 'info')
+  addLog(`WebSocket URL: ws://${window.location.hostname}:${window.location.port || '3000'}/ws`, 'info')
 
   setTimeout(() => {
     addLog('开始自动连接...', 'info')

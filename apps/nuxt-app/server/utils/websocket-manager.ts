@@ -37,6 +37,12 @@ class WebSocketManager {
   broadcast(type: string, data: unknown) {
     const message = JSON.stringify({ type, data });
 
+    logger.info('📤 [WS Manager] 准备广播', {
+      type,
+      clientCount: this.clients.size,
+      messageLength: message.length,
+    });
+
     if (type === 'crawler:task:updated') {
       const taskData = data as { id?: string; status?: string };
       logger.info('WebSocket 广播任务更新', {
@@ -50,20 +56,32 @@ class WebSocketManager {
           type,
           taskId: taskData.id,
         });
+        return;
       }
     }
 
     const failedClients: Set<WebSocketPeer> = new Set();
+    let successCount = 0;
+
     for (const client of this.clients) {
-      if (client.readyState === 1) { // WebSocket.OPEN
-        try {
-          client.send(message);
-        } catch (error) {
-          logger.error('WebSocket 发送消息失败', error as Error);
-          failedClients.add(client);
-        }
+      try {
+        client.send(message);
+        successCount++;
+        logger.info('✅ [WS Manager] 消息已发送', {
+          type,
+          messagePreview: message.slice(0, 200),
+        });
+      } catch (error) {
+        logger.error('❌ [WS Manager] 发送消息失败', error as Error);
+        failedClients.add(client);
       }
     }
+
+    logger.info('📊 [WS Manager] 广播完成', {
+      totalClients: this.clients.size,
+      successCount,
+      failedCount: failedClients.size,
+    });
 
     for (const client of failedClients) {
       this.removeClient(client);

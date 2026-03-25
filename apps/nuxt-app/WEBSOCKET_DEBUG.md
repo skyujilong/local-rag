@@ -57,7 +57,7 @@ npm run dev
 #### 预期的前端日志：
 ```
 [CrawlerView] 组件已挂载，开始初始化 WebSocket
-[useWebSocket] 正在连接 WebSocket { wsUrl: "ws://localhost:3000/_ws/ws" }
+[useWebSocket] 正在连接 WebSocket { wsUrl: "ws://localhost:3000/ws" }
 [useWebSocket] 创建 WebSocket 连接 { readyState: "CONNECTING" }
 [useWebSocket] WebSocket 已连接 { readyState: "OPEN (1)" }
 [crawler-store] WebSocket 连接状态变化 { connected: true }
@@ -73,7 +73,7 @@ WebSocket 客户端已连接 { clientCount: 1, readyState: 1 }
 ```
 1. 在开发者工具中，切换到 Network 标签页
 2. 筛选 WS (WebSocket) 连接
-3. 查找 ws://localhost:3000/_ws/ws
+3. 查找 ws://localhost:3000/ws
 4. 检查状态码（应该是 101 Switching Protocols）
 ```
 
@@ -121,7 +121,7 @@ WebSocket 客户端已连接 { clientCount: 1, readyState: 1 }
 ### 方法 1: 浏览器控制台测试
 ```javascript
 // 在浏览器控制台执行
-const ws = new WebSocket('ws://localhost:3000/_ws/ws');
+const ws = new WebSocket('ws://localhost:3000/ws');
 
 ws.onopen = () => console.log('WebSocket 连接成功');
 ws.onerror = (error) => console.error('WebSocket 错误:', error);
@@ -134,7 +134,7 @@ ws.onmessage = (event) => console.log('收到消息:', event.data);
 npm install -g wscat
 
 # 连接测试
-wscat -c ws://localhost:3000/_ws/ws
+wscat -c ws://localhost:3000/ws
 ```
 
 ## 下一步行动

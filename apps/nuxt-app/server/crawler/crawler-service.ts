@@ -201,7 +201,8 @@ export async function crawl(url: string, options: CrawlOptions = {}): Promise<Cr
     logger.info('浏览器已启动', { mode: 'visible' });
 
     // 导航到目标 URL
-    await page.goto(url, { waitUntil: 'networkidle', timeout: config.request.timeout });
+    // 使用 domcontentloaded 而非 networkidle，避免因广告等持续网络请求导致超时
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: config.request.timeout });
     logger.info('页面已加载', { url: page.url() });
 
     // 注意：页面引用由调用方（tasks/index.ts）通过 onBrowserReady 回调保存

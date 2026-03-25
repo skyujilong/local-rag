@@ -50,9 +50,13 @@ export const useCrawlerStore = defineStore('crawler', () => {
       return;
     }
 
-    logger.info('注册 WebSocket 处理器');
+    logger.info('📋 [Store] 注册 WebSocket 处理器');
     createdHandlerId = on('crawler:task:created', handleTaskUpdate);
     updatedHandlerId = on('crawler:task:updated', handleTaskUpdate);
+    logger.info('✅ [Store] 处理器注册完成', {
+      createdId: createdHandlerId.toString(),
+      updatedId: updatedHandlerId.toString(),
+    });
   }
 
   /**

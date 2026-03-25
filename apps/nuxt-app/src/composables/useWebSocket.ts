@@ -228,6 +228,14 @@ function connect() {
       try {
         const message: WebSocketMessage = JSON.parse(event.data)
 
+        // 🔍 详细日志：记录所有收到的消息
+        logger.info('📨 [WS] 收到消息', {
+          type: message.type,
+          dataType: typeof message.data,
+          hasData: !!message.data,
+          rawPreview: JSON.stringify(message.data).slice(0, 200),
+        })
+
         // 显式处理 pong 响应
         if (message.type === 'pong') {
           lastPongTime = Date.now()
@@ -273,9 +281,16 @@ function handleMessage(message: WebSocketMessage) {
   const { type, data } = message
   const handlers = globalHandlers.get(type)
 
+  logger.info('📬 [WS] 分发消息', {
+    type,
+    hasHandlers: !!handlers,
+    handlerCount: handlers?.size || 0,
+  })
+
   if (handlers) {
     handlers.forEach((handler, id) => {
       try {
+        logger.info('🔧 [WS] 调用处理器', { type, handlerId: id.toString() })
         handler(data)
       } catch (error) {
         logger.error('WebSocket 消息处理器错误', error as Error, { type, handlerId: id.toString() })
