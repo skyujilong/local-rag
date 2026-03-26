@@ -36,6 +36,11 @@ apps/api/data/
 apps/api/uploads/
 apps/web/public/uploads/
 
+# devrag-cli specific
+.devrag/
+*.db
+*.sqlite
+
 # 测试
 coverage/
 .nyc_output/
