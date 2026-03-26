@@ -19,13 +19,24 @@ if (!existsSync(LOG_DIR)) {
   mkdirSync(LOG_DIR, { recursive: true });
 }
 
-// 自定义格式化器：人可读的文本格式
-const customFormat = winston.format.combine(
+// JSON 格式化器：每行一条 JSON，便于机器解析
+const jsonFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  winston.format.errors({ stack: true }),
+  winston.format.json()
+);
+
+// Console 格式化器：人可读的彩色格式
+const consoleFormat = winston.format.combine(
+  winston.format.colorize(),
+  winston.format.timestamp({ format: 'HH:mm:ss' }),
   winston.format.printf(({ timestamp, level, message, module, stack }) => {
     const moduleStr = module ? `[${module}] ` : '';
-    const baseMsg = `[${timestamp}] [${level.toUpperCase()}] ${moduleStr}${message}`;
-    return stack ? `${baseMsg}\n    ${stack}` : baseMsg;
+    let output = `[${timestamp}] ${level}: ${moduleStr}${message}`;
+    if (stack) {
+      output += `\n${stack}`;
+    }
+    return output;
   })
 );
 
@@ -34,11 +45,27 @@ interface LogMetadata {
   module?: string;
   stack?: string;
   url?: string;
+  errorName?: string;
+  errorMessage?: string;
+  errorValue?: string;
+  [key: string]: any;
 }
 
 // Transport 初始化状态
 let transportsInitialized = false;
 let initializePromise: Promise<void> | null = null;
+
+// Winston logger 实例 - 先添加临时 Console transport 确保日志不丢失
+const winstonLogger = winston.createLogger({
+  level: LOG_LEVEL,
+  format: jsonFormat,
+  transports: [
+    // 临时的 Console transport，等文件 transport 初始化后会移除
+    new winston.transports.Console({
+      format: consoleFormat,
+    }),
+  ],
+});
 
 /**
  * 初始化 DailyRotateFile transport
@@ -60,7 +87,7 @@ async function initializeTransports(): Promise<void> {
         level: 'debug',
         maxSize: LOG_MAX_SIZE,
         maxFiles: LOG_MAX_FILES,
-        format: customFormat,
+        format: jsonFormat,
       });
 
       // 错误日志 transport (仅 error 级别)
@@ -70,45 +97,40 @@ async function initializeTransports(): Promise<void> {
         level: 'error',
         maxSize: LOG_MAX_SIZE,
         maxFiles: LOG_ERROR_MAX_FILES,
-        format: customFormat,
+        format: jsonFormat,
       });
 
-      // 清除现有 transports
+      // 清除所有 transports（包括临时的 Console）
       winstonLogger.clear();
 
-      // 添加新的 transports
+      // 添加文件 transports
       winstonLogger.add(allLogTransport);
       winstonLogger.add(errorLogTransport);
 
-      // Console transport (可选)
+      // 如果需要控制台输出，重新添加
       if (LOG_TO_CONSOLE) {
         const consoleTransport = new winston.transports.Console({
-          format: winston.format.combine(
-            winston.format.colorize(),
-            winston.format.timestamp({ format: 'HH:mm:ss' }),
-            winston.format.printf(({ timestamp, level, message }) => {
-              return `[${timestamp}] ${level}: ${message}`;
-            })
-          ),
+          format: consoleFormat,
         });
         winstonLogger.add(consoleTransport);
       }
 
       transportsInitialized = true;
+      console.log('✅ Winston 日志 transport 初始化完成');
     } catch (error) {
       // 如果 DailyRotateFile 不可用，使用普通文件 transport
-      console.warn('winston-daily-rotate-file 不可用，使用普通文件 transport');
+      console.warn('⚠️ winston-daily-rotate-file 不可用，使用普通文件 transport');
 
       const allLogTransport = new winston.transports.File({
         filename: join(LOG_DIR, 'all.log'),
         level: 'debug',
-        format: customFormat,
+        format: jsonFormat,
       });
 
       const errorLogTransport = new winston.transports.File({
         filename: join(LOG_DIR, 'error.log'),
         level: 'error',
-        format: customFormat,
+        format: jsonFormat,
       });
 
       winstonLogger.clear();
@@ -117,35 +139,22 @@ async function initializeTransports(): Promise<void> {
 
       if (LOG_TO_CONSOLE) {
         const consoleTransport = new winston.transports.Console({
-          format: winston.format.combine(
-            winston.format.colorize(),
-            winston.format.timestamp({ format: 'HH:mm:ss' }),
-            winston.format.printf(({ timestamp, level, message }) => {
-              return `[${timestamp}] ${level}: ${message}`;
-            })
-          ),
+          format: consoleFormat,
         });
         winstonLogger.add(consoleTransport);
       }
 
       transportsInitialized = true;
+      console.log('✅ Winston 文件日志 transport 初始化完成（fallback 模式）');
     }
   })();
 
   return initializePromise;
 }
 
-// Winston logger 实例
-const winstonLogger = winston.createLogger({
-  level: LOG_LEVEL,
-  format: customFormat,
-  // 初始为空，等待异步初始化
-  transports: [],
-});
-
 // 启动异步初始化
 initializeTransports().catch(err => {
-  console.error('初始化 logger transport 失败:', err);
+  console.error('❌ 初始化 logger transport 失败:', err);
 });
 
 // 模块前缀映射
@@ -181,9 +190,15 @@ class Logger {
 
   error(message: string, error?: Error | unknown, module?: string): void {
     const meta: LogMetadata = { module: this.getModule(module) };
+
     if (error instanceof Error) {
       meta.stack = error.stack;
+      (meta as any).errorName = error.name;
+      (meta as any).errorMessage = error.message;
+    } else if (error !== undefined) {
+      (meta as any).errorValue = String(error);
     }
+
     winstonLogger.error(message, meta);
   }
 
@@ -208,6 +223,13 @@ class Logger {
 
   setLevel(level: string): void {
     winstonLogger.level = level;
+  }
+
+  /**
+   * 等待 logger 初始化完成
+   */
+  async ready(): Promise<void> {
+    return initializeTransports();
   }
 }
 

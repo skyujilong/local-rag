@@ -335,6 +335,9 @@ app.notFound((c) => {
 export async function startServer() {
   const serverConfig = config.get('server');
 
+  // 等待 logger 初始化完成
+  await logger.ready();
+
   // Initialize services
   await embeddingService.initialize();
   await vectorStore.initialize();

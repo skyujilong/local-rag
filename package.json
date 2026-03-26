@@ -21,7 +21,11 @@
     "lint": "eslint src --ext .ts,.vue",
     "lint:fix": "eslint src --ext .ts,.vue --fix",
     "format": "prettier --write \"src/**/*.{ts,vue,json,md}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "logs": "node scripts/view-logs.js",
+    "logs:follow": "node scripts/view-logs.js --follow",
+    "logs:error": "node scripts/view-logs.js --error",
+    "logs:json": "node scripts/view-logs.js --json"
   },
   "keywords": [
     "rag",
