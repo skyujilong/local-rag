@@ -1,7 +1,7 @@
 /**
  * POST /api/crawler/start-crawl - 用户确认后开始爬取
  */
-import { createError, defineEventHandler, readBody } from 'h3'
+import { createError, defineEventHandler } from 'h3'
 import { createLogger, LogSystem } from '@local-rag/shared'
 import { activeTasks, CRAWLER_CONFIG, updateTaskProgress, broadcastTaskUpdate } from '../../utils/crawler-tasks'
 import { continueCrawl, saveAsDraft, activePages } from '../../crawler/crawler-service'
@@ -15,46 +15,40 @@ const logger = createLogger(LogSystem.API, 'crawler/start-crawl')
 
 export default defineEventHandler(async (event) => {
   try {
-    // 使用多种方法尝试读取 body（参考 tasks/index.ts 的做法）
+    // 读取 request body
+    //
+    // 已知问题：Nitro HMR (Hot Module Replacement) 环境下，h3 的 readBody() 和 readRawBody()
+    // 可能返回空对象或 undefined，导致无法正确解析 JSON body。
+    //
+    // 经过测试验证：
+    // - readBody(): 在 HMR 后总是返回空对象 {}
+    // - readRawBody(): 在 HMR 后总是返回空字符串 ""
+    // - Node.js req 流: 是唯一可靠的方式
+    //
+    // 相关日志证据 (2026-03-26):
+    // - 所有请求都使用 req 流读取成功
+    // - readBody/readRawBody 从未成功过
+    //
+    // TODO: 调查 Nitro/h3 根本原因，可能是 HMR 破坏了内部 body 缓存状态
     let body: StartCrawlBody | undefined
 
-    // 方法1: 尝试 readBody
-    try {
-      const result = await readBody<StartCrawlBody>(event)
-      if (result && Object.keys(result).length > 0) {
-        body = result
-      }
-    } catch (e) {
-      logger.debug('readBody 失败', { errorMessage: (e as Error).message })
-    }
-
-    // 方法2: 如果 readBody 返回空，尝试 readRawBody
-    if (!body || !body.taskId) {
+    // 直接使用 Node.js req 流读取（唯一可靠的方式）
+    if (event.node?.req) {
       try {
-        const rawBody = await readRawBody(event, 'utf-8')
+        const chunks: Buffer[] = []
+        for await (const chunk of event.node.req) {
+          chunks.push(chunk)
+        }
+        const rawBody = Buffer.concat(chunks).toString('utf-8')
         if (rawBody) {
           body = JSON.parse(rawBody) as StartCrawlBody
         }
       } catch (e) {
-        logger.debug('readRawBody 失败', { errorMessage: (e as Error).message })
-      }
-    }
-
-    // 方法3: 如果仍然为空，尝试从 Node.js req 读取
-    if (!body || !body.taskId) {
-      if (event.node?.req) {
-        try {
-          const chunks: Buffer[] = []
-          for await (const chunk of event.node.req) {
-            chunks.push(chunk)
-          }
-          const rawBody = Buffer.concat(chunks).toString('utf-8')
-          if (rawBody) {
-            body = JSON.parse(rawBody) as StartCrawlBody
-          }
-        } catch (e) {
-          logger.error('req 流读取失败', e as Error)
-        }
+        logger.error('req 流读取失败', e as Error)
+        throw createError({
+          statusCode: 400,
+          message: '请求格式错误',
+        })
       }
     }
 

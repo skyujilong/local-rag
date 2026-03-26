@@ -441,41 +441,33 @@ async function confirmContent(confirmed: boolean) {
     return;
   }
 
-  // 确认前先同步一次状态，确保状态一致
-  try {
-    await crawlerStore.loadTasks();
-  } catch {
-    // 同步失败不影响继续操作
-  }
+  const taskId = currentTask.value.id;
 
-  // 重新获取任务（从更新后的列表）
-  const task = crawlerStore.tasks.find(t => t.id === currentTask.value.id);
-  if (!task || task.status !== 'waiting_confirm') {
-    message.error('任务状态已变更，请刷新页面');
-    return;
-  }
-
-  // 详细的调试日志
   console.log('[DEBUG] confirmContent 被调用', {
     confirmed,
-    taskId: task.id,
-    taskStatus: task.status,
-    taskUrl: task.url,
-    taskLastUpdatedAt: task.lastUpdatedAt,
-    hasPreviewMarkdown: !!task.previewMarkdown,
-    previewMarkdownLength: task.previewMarkdown?.length || 0,
+    taskId,
+    taskStatus: currentTask.value.status,
+    taskUrl: currentTask.value.url,
+    hasPreviewMarkdown: !!currentTask.value.previewMarkdown,
   });
 
   try {
-    const response = await crawlerStore.confirmContent(task.id, confirmed);
+    const response = await crawlerStore.confirmContent(taskId, confirmed);
     if (confirmed && response?.data?.draftId) {
       draftId.value = response.data.draftId;
       message.success('草稿已保存');
     } else if (!confirmed) {
       message.info('已取消，您可以重新创建爬取任务');
     }
-  } catch {
-    message.error('操作失败');
+  } catch (error: any) {
+    // 后端会返回 409 状态码当状态不一致时
+    if (error?.statusCode === 409 || error?.statusMessage?.includes('状态已变更')) {
+      message.error('任务状态已变更，正在刷新...');
+      // 刷新任务列表以获取最新状态
+      await crawlerStore.loadTasks();
+    } else {
+      message.error('操作失败: ' + (error?.statusMessage || error?.message || '未知错误'));
+    }
   }
 }
 
