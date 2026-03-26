@@ -65,20 +65,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, h } from 'vue';
-import {
-  NSpace,
-  NH1,
-  NButton,
-  NDataTable,
-  NModal,
-  NTabs,
-  NTabPane,
-  NForm,
-  NFormItem,
-  NInput,
-  NTag,
-  type DataTableColumns,
-} from 'naive-ui';
+import type { DataTableColumns } from 'naive-ui';
 import type { Document } from '../../../shared/types';
 
 const loading = ref(false);

@@ -1,5 +1,6 @@
 <template>
   <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
+    <n-message-provider>
     <n-layout has-sider style="height: 100vh">
       <n-layout-sider
         bordered
@@ -38,26 +39,16 @@
         </n-layout-content>
       </n-layout>
     </n-layout>
+    </n-message-provider>
   </n-config-provider>
 </template>
 
 <script setup lang="ts">
 import { ref, h, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { darkTheme, type MenuOption } from 'naive-ui';
 import {
-  NConfigProvider,
-  NLayout,
-  NLayoutSider,
-  NLayoutHeader,
-  NLayoutContent,
-  NMenu,
-  NTag,
-  NSpace,
-  darkTheme,
-  type MenuOption,
-} from 'naive-ui';
-import {
-  DashboardOutline as DashboardIcon,
+  GridOutline as DashboardIcon,
   DocumentOutline as DocumentIcon,
   SearchOutline as SearchIcon,
 } from '@vicons/ionicons5';

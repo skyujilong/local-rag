@@ -61,20 +61,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import {
-  NH1,
-  NH2,
-  NGrid,
-  NGridItem,
-  NCard,
-  NStatistic,
-  NDivider,
-  NSpace,
-  NButton,
-  NDescriptions,
-  NDescriptionsItem,
-  NTag,
-} from 'naive-ui';
 
 const stats = ref({
   documentCount: 0,

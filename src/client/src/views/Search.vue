@@ -1,6 +1,5 @@
 <template>
-  <n-message-provider>
-    <div class="search">
+  <div class="search">
       <n-space vertical size="large">
         <n-h1>Search Knowledge Base</n-h1>
 
@@ -64,26 +63,11 @@
         <n-empty v-else-if="searched && searchResults.length === 0" description="No results found" />
       </n-space>
     </div>
-  </n-message-provider>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import {
-  NSpace,
-  NH1,
-  NCard,
-  NInput,
-  NIcon,
-  NSlider,
-  NText,
-  NButton,
-  NP,
-  NTag,
-  NEmpty,
-  NMessageProvider,
-  useMessage,
-} from 'naive-ui';
+import { useMessage } from 'naive-ui';
 import { SearchOutline as SearchIcon } from '@vicons/ionicons5';
 import type { HybridSearchResult } from '../../../shared/types';
 
