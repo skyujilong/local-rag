@@ -5,6 +5,7 @@ import App from './App.vue';
 import Dashboard from './views/Dashboard.vue';
 import Documents from './views/Documents.vue';
 import Search from './views/Search.vue';
+import { loggerPlugin } from './plugins/loggerPlugin.js';
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
@@ -19,6 +20,10 @@ const router = createRouter({
 });
 
 const app = createApp(App);
+
+// 安装日志插件（在 mount 之前）
+app.use(loggerPlugin);
+
 app.use(naive);
 app.use(router);
 app.mount('#app');

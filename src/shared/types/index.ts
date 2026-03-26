@@ -245,8 +245,28 @@ export interface AppConfig {
   };
   logging: {
     level: 'debug' | 'info' | 'warn' | 'error';
-    file?: string;
+    dir: string;
+    console: boolean;
   };
+}
+
+/**
+ * 前端日志条目
+ */
+export interface FrontendLogEntry {
+  level: 'debug' | 'info' | 'warn' | 'error';
+  message: string;
+  module?: string;
+  url?: string;
+  stack?: string;
+  userId?: string;
+}
+
+/**
+ * 批量日志请求
+ */
+export interface BatchLogRequest {
+  logs: FrontendLogEntry[];
 }
 
 /**

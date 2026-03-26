@@ -14,6 +14,7 @@ import { crawlerService } from '../services/crawler.js';
 import { embeddingService } from '../services/embeddings.js';
 import { vectorStore } from '../services/vectorstore.js';
 import { AppError, DocumentNotFoundError } from '../../shared/types/index.js';
+import { logsRouter } from './logs.js';
 
 const app = new Hono();
 
@@ -262,6 +263,9 @@ app.post('/api/import/text', async (c) => {
     );
   }
 });
+
+// Logs routes
+app.route('/api/logs', logsRouter);
 
 // Crawler routes
 app.post('/api/crawl', async (c) => {

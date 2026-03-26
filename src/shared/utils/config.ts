@@ -27,7 +27,9 @@ const DEFAULT_CONFIG: AppConfig = {
     maxConcurrency: 5,
   },
   logging: {
-    level: 'info',
+    level: (process.env.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error') || 'info',
+    dir: process.env.LOG_DIR || 'logs',
+    console: process.env.LOG_TO_CONSOLE !== 'false',
   },
 };
 
