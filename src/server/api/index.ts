@@ -77,6 +77,15 @@ app.get('/api/status', async (c) => {
   // Import MCP server dynamically to avoid circular dependency
   const { mcpServer } = await import('../mcp/server.js');
 
+  // 获取向量数量（如果未初始化则返回 0）
+  let vectorCount = 0;
+  try {
+    vectorCount = await vectorStore.getVectorCount();
+  } catch (error) {
+    // vectorStore 未初始化，返回 0
+    vectorCount = 0;
+  }
+
   return c.json({
     uptime,
     memoryUsage: {
@@ -86,7 +95,7 @@ app.get('/api/status', async (c) => {
     },
     cpuUsage: process.cpuUsage(),
     documentCount: documentService.getAllDocuments().length,
-    vectorCount: await vectorStore.getVectorCount(),
+    vectorCount,
     ollamaConnected: embeddingService.isReady(),
     ollamaModel: embeddingService.getModel(),
     mcpConnected: mcpServer.isActive(),

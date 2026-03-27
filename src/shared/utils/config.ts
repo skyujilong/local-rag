@@ -8,23 +8,28 @@ import { join } from 'path';
 
 const DEFAULT_CONFIG: AppConfig = {
   server: {
-    port: 3000,
-    host: '127.0.0.1',
+    port: parseInt(process.env.API_PORT || '3001', 10),
+    host: process.env.API_HOST || '127.0.0.1',
     cors: false,
   },
   ollama: {
-    baseUrl: 'http://127.0.0.1:11434',
-    model: 'nomic-embed-text',
-    timeout: 30000,
+    baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
+    model: process.env.OLLAMA_MODEL || 'nomic-embed-text',
+    timeout: parseInt(process.env.OLLAMA_TIMEOUT || '30000', 10),
   },
   chromadb: {
     path: join(process.cwd(), '.devrag', 'chromadb'),
     collectionName: 'documents',
   },
   processing: {
-    chunkSize: 1000,
-    chunkOverlap: 200,
+    chunkSize: parseInt(process.env.CHUNK_SIZE || '512', 10),
+    chunkOverlap: parseInt(process.env.CHUNK_OVERLAP || '50', 10),
     maxConcurrency: 5,
+  },
+  vectorStore: {
+    type: process.env.VECTOR_STORE_TYPE || 'simple',
+    topK: parseInt(process.env.TOP_K || '5', 10),
+    similarityThreshold: parseFloat(process.env.SIMILARITY_THRESHOLD || '0.7'),
   },
   logging: {
     level: (process.env.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error') || 'info',
@@ -61,6 +66,7 @@ class ConfigManager {
       ollama: { ...base.ollama, ...override.ollama },
       chromadb: { ...base.chromadb, ...override.chromadb },
       processing: { ...base.processing, ...override.processing },
+      vectorStore: { ...base.vectorStore, ...override.vectorStore },
       logging: { ...base.logging, ...override.logging },
     };
   }

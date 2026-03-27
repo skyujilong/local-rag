@@ -243,6 +243,11 @@ export interface AppConfig {
     chunkOverlap: number;
     maxConcurrency: number;
   };
+  vectorStore?: {
+    type: string;
+    topK: number;
+    similarityThreshold: number;
+  };
   logging: {
     level: 'debug' | 'info' | 'warn' | 'error';
     dir: string;

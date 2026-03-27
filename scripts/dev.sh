@@ -18,7 +18,7 @@ cleanup() {
   done
 
   # 额外清理：杀死可能遗留的 node/tsx 进程
-  pkill -f "tsx watch src/server/index.ts" 2>/dev/null
+  pkill -f "tsx watch src/server/cli.ts" 2>/dev/null
   pkill -f "vite.*src/client" 2>/dev/null
 
   echo "✅ 所有服务已停止"
@@ -40,8 +40,26 @@ npm run dev:client &
 CLIENT_PID=$!
 PIDS+=("$CLIENT_PID")
 
+# 等待服务启动
+sleep 3
+
+# 健康检查
 echo ""
-echo "✅ 所有服务已启动"
+echo "🔍 执行健康检查..."
+
+if ! curl -s http://localhost:3001/api/health > /dev/null; then
+  echo "❌ 后端启动失败"
+  cleanup
+fi
+
+if ! curl -s http://localhost:5173 > /dev/null; then
+  echo "❌ 前端启动失败"
+  cleanup
+fi
+
+echo "✅ 所有服务健康检查通过"
+echo ""
+echo "🌐 服务地址:"
 echo "   - 前端: http://localhost:5173"
 echo "   - 后端: http://localhost:3001"
 echo ""
