@@ -1,103 +1,58 @@
 {
-  "feature": "devrag-cli",
-  "description": "本地笔记+爬虫+本地RAG+Claude-CLI MCP",
-  "techStack": "Node.js (ChromaDB + Playwright + Ollama + Hono)",
-  "language": "中文",
-  "status": "done",
-  "completedAt": "2026-03-26T21:15:00Z",
-  "startPhase": 1,
+  "version": 2,
+  "feature": "documents",
+  "status": "running",
+  "startedAt": "2026-03-27T22:45:00Z",
   "maxFixRounds": 5,
-  "createdAt": "2026-03-26T14:00:00Z",
-  "startedAt": "2026-03-26T14:30:00Z",
+  "currentFixRound": 0,
   "phases": [
     {
-      "id": 1,
-      "name": "PM - 产品需求",
-      "role": "pm",
+      "phaseId": 1,
+      "name": "PM - 需求分析",
       "status": "done",
-      "startedAt": "2026-03-26T14:30:00Z",
-      "completedAt": "2026-03-26T14:35:00Z",
-      "output": "docs/prd/feature-devrag-cli.md"
+      "startedAt": "2026-03-27T22:45:00Z",
+      "completedAt": "2026-03-27T22:47:00Z",
+      "output": "docs/prd/feature-documents.md"
     },
     {
-      "id": 2,
+      "phaseId": 2,
       "name": "并行设计",
-      "status": "done",
-      "startedAt": "2026-03-26T14:40:00Z",
-      "completedAt": "2026-03-26T14:55:00Z",
+      "status": "pending",
       "subtasks": [
-        {
-          "role": "architect",
-          "name": "架构师",
-          "status": "done",
-          "startedAt": "2026-03-26T14:40:00Z",
-          "completedAt": "2026-03-26T14:44:00Z",
-          "output": "docs/architecture/feature-devrag-cli.md"
-        },
-        {
-          "role": "ui-designer",
-          "name": "UI 设计师",
-          "status": "done",
-          "startedAt": "2026-03-26T14:40:00Z",
-          "completedAt": "2026-03-26T14:52:00Z",
-          "output": "docs/ui-design/feature-devrag-cli.md"
-        },
-        {
-          "role": "tester",
-          "name": "测试工程师",
-          "status": "done",
-          "startedAt": "2026-03-26T14:40:00Z",
-          "completedAt": "2026-03-26T14:49:00Z",
-          "output": "docs/test-plans/feature-devrag-cli.md"
-        }
+        {"role": "architect", "roleName": "架构师", "status": "pending", "output": "docs/architecture/feature-documents.md"},
+        {"role": "ui-designer", "roleName": "UI 设计师", "status": "pending", "output": "docs/ui-design/feature-documents.md"},
+        {"role": "tester", "roleName": "测试工程师", "status": "pending", "output": "docs/test-plans/feature-documents.md"}
       ]
     },
     {
-      "id": 3,
+      "phaseId": 3,
       "name": "全栈开发",
-      "role": "fullstack",
-      "status": "done",
-      "startedAt": "2026-03-26T18:50:00Z",
-      "completedAt": "2026-03-26T19:00:00Z",
+      "status": "pending",
       "output": "src/"
     },
     {
-      "id": 4,
+      "phaseId": 4,
       "name": "代码审查",
-      "role": "reviewer",
-      "status": "done",
-      "startedAt": "2026-03-26T19:00:00Z",
-      "completedAt": "2026-03-26T19:05:00Z",
-      "output": "docs/reviews/feature-devrag-cli.md"
+      "status": "pending",
+      "output": "docs/reviews/feature-documents.md"
     },
     {
-      "id": 5,
+      "phaseId": 5,
       "name": "审查修复",
-      "role": "fullstack",
-      "status": "done",
-      "startedAt": "2026-03-26T19:05:00Z",
-      "completedAt": "2026-03-26T19:12:00Z",
-      "output": "docs/reviews/feature-devrag-cli-fix-log.md"
+      "status": "pending",
+      "output": "docs/reviews/feature-documents-fix-log.md"
     },
     {
-      "id": 6,
+      "phaseId": 6,
       "name": "测试执行",
-      "role": "tester",
-      "status": "done",
-      "startedAt": "2026-03-26T19:12:00Z",
-      "completedAt": "2026-03-26T21:10:00Z",
-      "output": "docs/test-plans/feature-devrag-cli-results-round-1.md"
+      "status": "pending",
+      "output": "docs/test-plans/feature-documents-results-round-1.md"
     },
     {
-      "id": 7,
+      "phaseId": 7,
       "name": "修复循环",
-      "role": "fullstack",
-      "status": "skipped",
-      "maxRounds": 5,
-      "currentRound": 0,
-      "note": "全部通过，无需修复循环",
-      "output": "docs/test-plans/feature-devrag-cli-results-round-N.md"
+      "status": "pending",
+      "rounds": []
     }
-  ],
-  "fixRounds": []
+  ]
 }

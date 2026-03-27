@@ -67,6 +67,7 @@
 import { ref, onMounted, h } from 'vue';
 import type { DataTableColumns } from 'naive-ui';
 import type { Document } from '../../../shared/types';
+import {NTag,NButton,NSpace} from 'naive-ui'
 
 const loading = ref(false);
 const importing = ref(false);
