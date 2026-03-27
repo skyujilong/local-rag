@@ -66,7 +66,11 @@ class ConfigManager {
       ollama: { ...base.ollama, ...override.ollama },
       chromadb: { ...base.chromadb, ...override.chromadb },
       processing: { ...base.processing, ...override.processing },
-      vectorStore: { ...base.vectorStore, ...override.vectorStore },
+      vectorStore: {
+        ...base.vectorStore,
+        ...override.vectorStore,
+        type: override.vectorStore?.type || base.vectorStore.type,
+      },
       logging: { ...base.logging, ...override.logging },
     };
   }

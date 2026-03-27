@@ -97,14 +97,23 @@ const handleMenuSelect = (key: string) => {
 const fetchStatus = async () => {
   try {
     const response = await fetch('/api/status');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const data = await response.json();
     status.value = {
-      ollamaConnected: data.ollamaConnected,
-      documentCount: data.documentCount,
-      vectorCount: data.vectorCount,
+      ollamaConnected: data.ollamaConnected || false,
+      documentCount: data.documentCount || 0,
+      vectorCount: data.vectorCount || 0,
     };
   } catch (error) {
     console.error('Failed to fetch status:', error);
+    // Set default values on error
+    status.value = {
+      ollamaConnected: false,
+      documentCount: 0,
+      vectorCount: 0,
+    };
   }
 };
 

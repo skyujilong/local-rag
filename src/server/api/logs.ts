@@ -6,7 +6,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { createLogger, logFrontend } from '../../shared/utils/logger.js';
-import type { BatchLogRequest, FrontendLogEntry } from '../../shared/types/index.js';
+import type { FrontendLogEntry } from '../../shared/types/index.js';
 
 const log = createLogger('api:logs');
 
