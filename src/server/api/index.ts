@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { config } from '../../shared/utils/config.js';
-import { logger } from '../../shared/utils/logger.js';
+import { createLogger, logFrontend, ready } from '../../shared/utils/logger.js';
 import { documentService } from '../services/documents.js';
 import { searchService } from '../services/search.js';
 import { crawlerService } from '../services/crawler.js';
@@ -16,11 +16,32 @@ import { vectorStore } from '../services/vectorstore.js';
 import { AppError, DocumentNotFoundError } from '../../shared/types/index.js';
 import { logsRouter } from './logs.js';
 
+const log = createLogger('server');
+const logRequest = createLogger('api:request');
+
 const app = new Hono();
 
 // Middleware
 app.use('*', honoLogger());
 app.use('*', cors());
+
+// 请求日志中间件
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  const method = c.req.method;
+  const path = c.req.path;
+
+  await next();
+
+  const duration = Date.now() - start;
+  const status = c.res.status;
+
+  // 记录请求日志
+  const level = status >= 400 ? 'warn' : 'debug';
+  logFrontend(level, `${method} ${path} ${status} (${duration}ms)`, {
+    module: 'api:request',
+  });
+});
 
 // Request body size limit middleware (10MB)
 app.use('*', async (c, next) => {
@@ -29,6 +50,7 @@ app.use('*', async (c, next) => {
     const size = parseInt(contentLength, 10);
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (size > maxSize) {
+      logRequest.warn(`请求体过大: ${size} bytes`);
       return c.json({ error: 'Request body too large (max 10MB)' }, 413);
     }
   }
@@ -311,7 +333,10 @@ app.post('/api/crawl', async (c) => {
 
 // Error handler
 app.onError((err, c) => {
-  logger.error('API error', err);
+  const path = c.req.path;
+  const method = c.req.method;
+
+  log.error(`API 错误: ${method} ${path}`, err);
 
   if (err instanceof AppError) {
     return c.json(
@@ -328,6 +353,8 @@ app.onError((err, c) => {
 
 // 404 handler
 app.notFound((c) => {
+  const path = c.req.path;
+  logRequest.warn(`404 Not Found: ${path}`);
   return c.json({ error: 'Not found' }, 404);
 });
 
@@ -335,24 +362,46 @@ app.notFound((c) => {
 export async function startServer() {
   const serverConfig = config.get('server');
 
-  // 等待 logger 初始化完成
-  await logger.ready();
+  log.info('服务器启动开始');
 
-  // Initialize services
-  await embeddingService.initialize();
-  await vectorStore.initialize();
+  // 等待 logger 初始化完成
+  await ready();
+  log.info('Logger 初始化完成');
 
   // Start HTTP server
   const port = serverConfig.port;
   const host = serverConfig.host;
 
+  log.info(`启动 HTTP 服务器 ${host}:${port}`);
   const server = serve({
     fetch: app.fetch,
     port,
     hostname: host,
   });
 
-  logger.info(`Server started at http://${host}:${port}`);
+  log.info(`服务器启动成功: http://${host}:${port}`);
+  log.info('可用端点: /api/health, /api/status, /api/documents, /api/search');
+
+  // 在后台初始化服务（不阻塞服务器启动）
+  setImmediate(async () => {
+    log.info('后台初始化 embedding service');
+    try {
+      await embeddingService.initialize();
+      log.info('Embedding service 初始化完成');
+    } catch (error) {
+      log.warn('Embedding service 初始化失败，部分功能将不可用', error);
+    }
+
+    log.info('后台初始化 vector store');
+    try {
+      await vectorStore.initialize();
+      log.info('Vector store 初始化完成');
+    } catch (error) {
+      log.warn('Vector store 初始化失败，部分功能将不可用', error);
+    }
+
+    log.info('所有服务初始化完成');
+  });
 
   return server;
 }

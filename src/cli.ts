@@ -5,7 +5,7 @@
 
 import { Command } from 'commander';
 import { config } from './shared/utils/config.js';
-import { logger } from './shared/utils/logger.js';
+import { createLogger, setLogLevel } from './shared/utils/logger.js';
 import { startServer } from './server/api/index.js';
 import { mcpServer } from './server/mcp/server.js';
 import { documentService } from './server/services/documents.js';
@@ -13,6 +13,8 @@ import { crawlerService } from './server/services/crawler.js';
 import { embeddingService } from './server/services/embeddings.js';
 import { vectorStore } from './server/services/vectorstore.js';
 import { existsSync } from 'fs';
+
+const log = createLogger('cli');
 
 const program = new Command();
 
@@ -38,10 +40,10 @@ program
       });
 
       // Set log level
-      logger.setLevel(config.get('logging').level);
+      setLogLevel(config.get('logging').level);
 
-      logger.info('Starting devrag-cli...');
-      logger.info(`Configuration: ${JSON.stringify(config.getAll(), null, 2)}`);
+      log.info('Starting devrag-cli...');
+      log.info(`Configuration: ${JSON.stringify(config.getAll(), null, 2)}`);
 
       // Check dependencies (strict mode for start command)
       await checkDependencies(true);
@@ -52,11 +54,11 @@ program
         await vectorStore.initialize();
         await mcpServer.start();
 
-        logger.info('MCP Server running. Press Ctrl+C to stop.');
+        log.info('MCP Server running. Press Ctrl+C to stop.');
 
         // Keep process alive
         process.on('SIGINT', async () => {
-          logger.info('Shutting down MCP Server...');
+          log.info('Shutting down MCP Server...');
           await mcpServer.stop();
           process.exit(0);
         });
@@ -70,18 +72,18 @@ program
           await vectorStore.initialize();
           await mcpServer.start();
         } catch (error) {
-          logger.warn('MCP Server failed to start, continuing without it');
+          log.warn('MCP Server failed to start, continuing without it');
         }
 
-        logger.info('Server started successfully!');
-        logger.info(`Web UI: http://${options.host}:${options.port}`);
-        logger.info(`API: http://${options.host}:${options.port}/api`);
-        logger.info('');
-        logger.info('Press Ctrl+C to stop the server.');
+        log.info('Server started successfully!');
+        log.info(`Web UI: http://${options.host}:${options.port}`);
+        log.info(`API: http://${options.host}:${options.port}/api`);
+        log.info('');
+        log.info('Press Ctrl+C to stop the server.');
 
         // Graceful shutdown
         process.on('SIGINT', async () => {
-          logger.info('Shutting down server...');
+          log.info('Shutting down server...');
           await mcpServer.stop();
           await crawlerService.close();
           server.close();
@@ -89,7 +91,7 @@ program
         });
       }
     } catch (error) {
-      logger.error('Failed to start server', error);
+      log.error('Failed to start server', error);
       process.exit(1);
     }
   });
@@ -106,16 +108,16 @@ program
       await checkDependencies(true);
 
       if (!existsSync(path)) {
-        logger.error(`Path does not exist: ${path}`);
+        log.error(`Path does not exist: ${path}`);
         process.exit(1);
       }
 
       const stats = await importPath(path, options);
-      logger.info('Import completed!');
-      logger.info(`Documents imported: ${stats.count}`);
-      logger.info(`Failed: ${stats.failed}`);
+      log.info('Import completed!');
+      log.info(`Documents imported: ${stats.count}`);
+      log.info(`Failed: ${stats.failed}`);
     } catch (error) {
-      logger.error('Import failed', error);
+      log.error('Import failed', error);
       process.exit(1);
     }
   });
@@ -131,11 +133,11 @@ program
       await checkDependencies(true);
 
       const stats = await importObsidian(vaultPath, options);
-      logger.info('Obsidian import completed!');
-      logger.info(`Documents imported: ${stats.count}`);
-      logger.info(`Failed: ${stats.failed}`);
+      log.info('Obsidian import completed!');
+      log.info(`Documents imported: ${stats.count}`);
+      log.info(`Failed: ${stats.failed}`);
     } catch (error) {
-      logger.error('Import failed', error);
+      log.error('Import failed', error);
       process.exit(1);
     }
   });
@@ -152,9 +154,9 @@ program
       await checkDependencies(true);
 
       await crawlUrl(url, options);
-      logger.info('Crawl completed!');
+      log.info('Crawl completed!');
     } catch (error) {
-      logger.error('Crawl failed', error);
+      log.error('Crawl failed', error);
       process.exit(1);
     }
   });
@@ -169,7 +171,7 @@ program
       await checkDependencies(false);
       await checkStatus();
     } catch (error) {
-      logger.error('Status check failed', error);
+      log.error('Status check failed', error);
       process.exit(1);
     }
   });
@@ -182,7 +184,7 @@ async function checkDependencies(strict = true): Promise<void> {
   // Check Ollama
   try {
     await embeddingService.initialize();
-    logger.info('✓ Ollama connection OK');
+    log.info('✓ Ollama connection OK');
   } catch (error) {
     const msg = 'Ollama: Not connected. Make sure Ollama is running (https://ollama.com)';
     if (strict) {
@@ -195,7 +197,7 @@ async function checkDependencies(strict = true): Promise<void> {
   // Check ChromaDB
   try {
     await vectorStore.initialize();
-    logger.info('✓ ChromaDB initialized OK');
+    log.info('✓ ChromaDB initialized OK');
   } catch (error) {
     const msg = 'ChromaDB: Failed to initialize';
     if (strict) {
@@ -207,7 +209,7 @@ async function checkDependencies(strict = true): Promise<void> {
 
   // Log warnings in non-strict mode
   if (!strict && warnings.length > 0) {
-    warnings.forEach(w => logger.warn(w));
+    warnings.forEach(w => log.warn(w));
   }
 
   // Only throw in strict mode
@@ -224,7 +226,7 @@ async function importPath(path: string, options: any) {
       tags: options.tags,
       skipErrors: options.skipErrors,
       onProgress: (progress) => {
-        logger.info(
+        log.info(
           `Vectorizing: ${progress.documentTitle} (${progress.processedChunks}/${progress.totalChunks})`
         );
       },
@@ -249,7 +251,7 @@ async function importObsidian(vaultPath: string, options: any) {
       tags: [...(options.tags || []), 'obsidian'],
       skipErrors: options.skipErrors,
       onProgress: (progress) => {
-        logger.info(
+        log.info(
           `Vectorizing: ${progress.documentTitle} (${progress.processedChunks}/${progress.totalChunks})`
         );
       },

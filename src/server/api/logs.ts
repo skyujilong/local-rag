@@ -5,8 +5,10 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { logger } from '../../shared/utils/logger.js';
+import { createLogger, logFrontend } from '../../shared/utils/logger.js';
 import type { BatchLogRequest, FrontendLogEntry } from '../../shared/types/index.js';
+
+const log = createLogger('api:logs');
 
 const logsRouter = new Hono();
 
@@ -72,7 +74,7 @@ const cleanupInterval = setInterval(() => {
   keysToDelete.forEach(key => rateLimiter.delete(key));
   cleaned = keysToDelete.length;
   if (cleaned > 0) {
-    logger.debug(`清理速率限制器: 移除 ${cleaned} 条记录`, 'api:logs');
+    log.debug(`清理速率限制器: 移除 ${cleaned} 条记录`);
   }
 }, 60000);
 
@@ -113,7 +115,7 @@ logsRouter.post('/', async (c) => {
                c.req.header('cf-connecting-ip') ||
                'unknown';
     if (!checkRateLimit(ip)) {
-      logger.warn(`速率限制触发: ${ip}`, 'api:logs');
+      log.warn(`速率限制触发: ${ip}`);
       return c.json({ error: 'Rate limit exceeded' }, 429);
     }
 
@@ -140,20 +142,20 @@ logsRouter.post('/', async (c) => {
     setImmediate(() => {
       try {
         for (const log of sanitizedLogs) {
-          logger.logFrontend(log.level, log.message, {
+          logFrontend(log.level, log.message, {
             module: log.module,
             url: log.url,
             stack: log.stack,
           });
         }
       } catch (error) {
-        logger.error('写入日志失败', error, 'api:logs');
+        log.error('写入日志失败', error);
       }
     });
 
     return c.json({ success: true, received: sanitizedLogs.length });
   } catch (error) {
-    logger.error('处理日志请求失败', error, 'api:logs');
+    log.error('处理日志请求失败', error);
     return c.json({ error: 'Internal server error' }, 500);
   }
 });

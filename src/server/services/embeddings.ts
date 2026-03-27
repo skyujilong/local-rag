@@ -4,15 +4,17 @@
 
 import type { Ollama as OllamaType } from 'ollama';
 import { config } from '../../shared/utils/config.js';
-import { logger } from '../../shared/utils/logger.js';
+import { createLogger } from '../../shared/utils/logger.js';
 import { OllamaConnectionError } from '../../shared/types/index.js';
+
+const log = createLogger('services:embeddings');
 
 // Dynamic import to avoid type issues
 let Ollama: typeof OllamaType;
 try {
   Ollama = (await import('ollama')).default as any;
 } catch (error) {
-  logger.error('Failed to import Ollama:', error);
+  log.error('Failed to import Ollama:', error);
   throw new OllamaConnectionError('Ollama package not found');
 }
 
@@ -43,9 +45,9 @@ export class EmbeddingService {
       await this.checkConnection();
 
       this.connected = true;
-      logger.info(`Ollama connected successfully, using model: ${this.model}`);
+      log.info(`Ollama connected successfully, using model: ${this.model}`);
     } catch (error) {
-      logger.error('Failed to connect to Ollama', error);
+      log.error('Failed to connect to Ollama', error);
       throw new OllamaConnectionError(
         'Make sure Ollama is running and the model is available. Install from https://ollama.com'
       );
@@ -78,7 +80,7 @@ export class EmbeddingService {
       });
 
       this.vectorDimension = testEmbedding.embedding.length;
-      logger.debug(`Vector dimension: ${this.vectorDimension}`);
+      log.debug(`Vector dimension: ${this.vectorDimension}`);
     } catch (error) {
       if (error instanceof OllamaConnectionError) {
         throw error;
@@ -113,13 +115,13 @@ export class EmbeddingService {
         if (attempt < retries - 1) {
           // Exponential backoff: 1s, 2s, 4s
           const delay = Math.pow(2, attempt) * 1000;
-          logger.info(`Embedding attempt ${attempt + 1}/${retries} failed, retrying in ${delay}ms...`);
+          log.info(`Embedding attempt ${attempt + 1}/${retries} failed, retrying in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
     }
 
-    logger.error(`Failed to generate embedding after ${retries} attempts`, lastError);
+    log.error(`Failed to generate embedding after ${retries} attempts`, lastError);
     throw new OllamaConnectionError(
       `Embedding generation failed after ${retries} retries: ${lastError?.message || 'Unknown error'}`
     );
@@ -146,7 +148,7 @@ export class EmbeddingService {
       batchSize = 10; // Larger batches for small texts
     }
 
-    logger.debug(`Using batch size ${batchSize} for average text length ${Math.round(avgTextLength)} chars`);
+    log.debug(`Using batch size ${batchSize} for average text length ${Math.round(avgTextLength)} chars`);
 
     for (let i = 0; i < texts.length; i += batchSize) {
       const batch = texts.slice(i, i + batchSize);
@@ -154,7 +156,7 @@ export class EmbeddingService {
       const batchResults = await Promise.all(batchPromises);
       embeddings.push(...batchResults);
 
-      logger.debug(`Processed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(texts.length / batchSize)}`);
+      log.debug(`Processed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(texts.length / batchSize)}`);
     }
 
     return embeddings;

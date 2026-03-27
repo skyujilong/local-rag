@@ -10,8 +10,10 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { searchService } from '../services/search.js';
 import { documentService } from '../services/documents.js';
-import { logger } from '../../shared/utils/logger.js';
+import { createLogger } from '../../shared/utils/logger.js';
 import type { MCPToolResult } from '../../shared/types/index.js';
+
+const log = createLogger('mcp');
 
 export class MCPServer {
   private server: Server | null = null;
@@ -57,9 +59,9 @@ export class MCPServer {
       await this.server.connect(transport);
 
       this.running = true;
-      logger.info('MCP Server started successfully');
+      log.info('MCP Server started successfully');
     } catch (error) {
-      logger.error('Failed to start MCP Server', error);
+      log.error('Failed to start MCP Server', error);
       throw error;
     }
   }
@@ -158,7 +160,7 @@ export class MCPServer {
    */
   private async handleToolCall(name: string, args: Record<string, unknown>): Promise<MCPToolResult> {
     try {
-      logger.info(`MCP Tool called: ${name}`, args);
+      log.info(`MCP Tool called: ${name}`, args);
 
       switch (name) {
         case 'search_knowledge_base':
@@ -176,7 +178,7 @@ export class MCPServer {
           };
       }
     } catch (error) {
-      logger.error(`Tool execution failed: ${name}`, error);
+      log.error(`Tool execution failed: ${name}`, error);
       return {
         content: [
           {
@@ -432,7 +434,7 @@ ${document.content}`,
       const document = await documentService.addDocumentFromText(content, title, {
         tags,
         onProgress: (progress) => {
-          logger.debug(`Vectorization progress: ${progress.processedChunks}/${progress.totalChunks}`);
+          log.debug(`Vectorization progress: ${progress.processedChunks}/${progress.totalChunks}`);
         },
       });
 
@@ -464,7 +466,7 @@ ${document.content}`,
     if (this.server && this.running) {
       await this.server.close();
       this.running = false;
-      logger.info('MCP Server stopped');
+      log.info('MCP Server stopped');
     }
   }
 

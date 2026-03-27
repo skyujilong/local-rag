@@ -17,10 +17,12 @@ import {
   VectorizationError,
   DocumentNotFoundError,
 } from '../../shared/types/index.js';
-import { logger } from '../../shared/utils/logger.js';
+import { createLogger } from '../../shared/utils/logger.js';
 import { splitText, extractTitle, extractTags, countWords, detectLanguage } from '../../shared/utils/text.js';
 import { embeddingService } from './embeddings.js';
 import { vectorStore } from './vectorstore.js';
+
+const log = createLogger('services:documents');
 
 // Metadata storage file path
 const METADATA_STORAGE_PATH = join(process.cwd(), '.devrag', 'documents-metadata.json');
@@ -33,7 +35,7 @@ export class DocumentService {
   constructor() {
     // Load metadata on initialization
     this.loadDocumentMetadata().catch((error) => {
-      logger.warn('Failed to load document metadata on startup:', error);
+      log.warn('Failed to load document metadata on startup:', error);
     });
   }
 
@@ -99,7 +101,7 @@ export class DocumentService {
 
       return document;
     } catch (error) {
-      logger.error(`Failed to import markdown file: ${filePath}`, error);
+      log.error(`Failed to import markdown file: ${filePath}`, error);
       throw new Error(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
@@ -114,7 +116,7 @@ export class DocumentService {
     const files = await readdir(dirPath);
     const markdownFiles = files.filter((f) => extname(f) === '.md');
 
-    logger.info(`Found ${markdownFiles.length} markdown files in ${dirPath}`);
+    log.info(`Found ${markdownFiles.length} markdown files in ${dirPath}`);
 
     const documents: Document[] = [];
 
@@ -127,7 +129,7 @@ export class DocumentService {
         if (!options.skipErrors) {
           throw error;
         }
-        logger.warn(`Skipped file due to error: ${file}`);
+        log.warn(`Skipped file due to error: ${file}`);
       }
     }
 
@@ -146,7 +148,7 @@ export class DocumentService {
     // Recursively find all markdown files
     const markdownFiles = await this.findMarkdownFiles(vaultPath);
 
-    logger.info(`Found ${markdownFiles.length} files in Obsidian vault: ${vaultPath}`);
+    log.info(`Found ${markdownFiles.length} files in Obsidian vault: ${vaultPath}`);
 
     for (const filePath of markdownFiles) {
       try {
@@ -159,7 +161,7 @@ export class DocumentService {
         if (!options.skipErrors) {
           throw error;
         }
-        logger.warn(`Skipped file due to error: ${filePath}`);
+        log.warn(`Skipped file due to error: ${filePath}`);
       }
     }
 
@@ -289,7 +291,7 @@ export class DocumentService {
         options.onProgress(progress);
       }
 
-      logger.info(`Document vectorized: ${document.metadata.title} (${document.chunks.length} chunks)`);
+      log.info(`Document vectorized: ${document.metadata.title} (${document.chunks.length} chunks)`);
     } catch (error) {
       document.vectorizationStatus = VectorizationStatus.FAILED;
       document.status = DocumentStatus.FAILED;
@@ -301,7 +303,7 @@ export class DocumentService {
         progress.error = document.error;
       }
 
-      logger.error(`Vectorization failed for document ${documentId}`, error);
+      log.error(`Vectorization failed for document ${documentId}`, error);
       throw new VectorizationError(documentId, document.error);
     } finally {
       this.processingQueue.delete(documentId);
@@ -340,7 +342,7 @@ export class DocumentService {
     // Update persistent storage
     await this.saveDocumentMetadata();
 
-    logger.info(`Document deleted: ${document.metadata.title}`);
+    log.info(`Document deleted: ${document.metadata.title}`);
   }
 
   /**
@@ -429,10 +431,10 @@ export class DocumentService {
       }
 
       this.metadataLoaded = true;
-      logger.info(`Loaded ${metadataList.length} document metadata from storage`);
+      log.info(`Loaded ${metadataList.length} document metadata from storage`);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        logger.warn('Failed to load document metadata:', error);
+        log.warn('Failed to load document metadata:', error);
       }
       this.metadataLoaded = true;
     }
@@ -457,9 +459,9 @@ export class DocumentService {
       // Write to file
       await writeFile(METADATA_STORAGE_PATH, JSON.stringify(metadataList, null, 2));
 
-      logger.debug(`Saved ${metadataList.length} document metadata to storage`);
+      log.debug(`Saved ${metadataList.length} document metadata to storage`);
     } catch (error) {
-      logger.error('Failed to save document metadata:', error);
+      log.error('Failed to save document metadata:', error);
       throw error;
     }
   }

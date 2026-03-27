@@ -164,7 +164,61 @@ const modulePrefixes: Record<string, string> = {
   'frontend:': 'frontend',
 };
 
-// Logger 类，提供简化的 API
+// Module logger 接口
+export interface ModuleLogger {
+  debug(message: string, meta?: Record<string, unknown>): void;
+  info(message: string, meta?: Record<string, unknown>): void;
+  warn(message: string, error?: Error | unknown, meta?: Record<string, unknown>): void;
+  error(message: string, error?: Error | unknown, meta?: Record<string, unknown>): void;
+}
+
+// 创建模块专属的 logger
+export function createLogger(module: string): ModuleLogger {
+  // 格式化 module 名称
+  const formattedModule = (() => {
+    for (const [prefix, name] of Object.entries(modulePrefixes)) {
+      if (module.startsWith(name)) {
+        return prefix + module;
+      }
+    }
+    return module;
+  })();
+
+  return {
+    debug: (message: string, meta?: Record<string, unknown>) => {
+      winstonLogger.debug(message, { module: formattedModule, ...meta });
+    },
+    info: (message: string, meta?: Record<string, unknown>) => {
+      winstonLogger.info(message, { module: formattedModule, ...meta });
+    },
+    warn: (message: string, error?: Error | unknown, meta?: Record<string, unknown>) => {
+      const logMeta: LogMetadata = { module: formattedModule, ...meta };
+      if (error instanceof Error) {
+        logMeta.stack = error.stack;
+        (logMeta as any).errorName = error.name;
+        (logMeta as any).errorMessage = error.message;
+      } else if (error !== undefined) {
+        (logMeta as any).errorValue = String(error);
+      }
+      winstonLogger.warn(message, logMeta);
+    },
+    error: (message: string, error?: Error | unknown, meta?: Record<string, unknown>) => {
+      const logMeta: LogMetadata = { module: formattedModule, ...meta };
+      if (error instanceof Error) {
+        logMeta.stack = error.stack;
+        (logMeta as any).errorName = error.name;
+        (logMeta as any).errorMessage = error.message;
+      } else if (error !== undefined) {
+        (logMeta as any).errorValue = String(error);
+      }
+      winstonLogger.error(message, logMeta);
+    },
+  };
+}
+
+/**
+ * @deprecated 使用 createLogger(module) 代替
+ */
 class Logger {
   private getModule(module: string | undefined): string | undefined {
     if (!module) return undefined;
@@ -184,13 +238,8 @@ class Logger {
     winstonLogger.info(message, { module: this.getModule(module) });
   }
 
-  warn(message: string, module?: string): void {
-    winstonLogger.warn(message, { module: this.getModule(module) });
-  }
-
-  error(message: string, error?: Error | unknown, module?: string): void {
+  warn(message: string, error?: Error | unknown, module?: string): void {
     const meta: LogMetadata = { module: this.getModule(module) };
-
     if (error instanceof Error) {
       meta.stack = error.stack;
       (meta as any).errorName = error.name;
@@ -198,27 +247,19 @@ class Logger {
     } else if (error !== undefined) {
       (meta as any).errorValue = String(error);
     }
-
-    winstonLogger.error(message, meta);
+    winstonLogger.warn(message, meta);
   }
 
-  // 前端日志专用方法
-  logFrontend(level: string, message: string, meta?: {
-    module?: string;
-    url?: string;
-    stack?: string;
-  }): void {
-    const logMeta: LogMetadata = {};
-    if (meta?.module) {
-      logMeta.module = 'frontend:' + meta.module;
+  error(message: string, error?: Error | unknown, module?: string): void {
+    const meta: LogMetadata = { module: this.getModule(module) };
+    if (error instanceof Error) {
+      meta.stack = error.stack;
+      (meta as any).errorName = error.name;
+      (meta as any).errorMessage = error.message;
+    } else if (error !== undefined) {
+      (meta as any).errorValue = String(error);
     }
-    if (meta?.url) {
-      logMeta.url = meta.url;
-    }
-    if (meta?.stack) {
-      logMeta.stack = meta.stack;
-    }
-    winstonLogger.log(level.toLowerCase(), message, logMeta);
+    winstonLogger.error(message, meta);
   }
 
   setLevel(level: string): void {
@@ -233,4 +274,36 @@ class Logger {
   }
 }
 
+/**
+ * @deprecated 使用 createLogger(module) 代替
+ */
 export const logger = new Logger();
+
+// 全局方法：前端日志专用
+export function logFrontend(level: string, message: string, meta?: {
+  module?: string;
+  url?: string;
+  stack?: string;
+}): void {
+  const logMeta: LogMetadata = {};
+  if (meta?.module) {
+    logMeta.module = 'frontend:' + meta.module;
+  }
+  if (meta?.url) {
+    logMeta.url = meta.url;
+  }
+  if (meta?.stack) {
+    logMeta.stack = meta.stack;
+  }
+  winstonLogger.log(level.toLowerCase(), message, logMeta);
+}
+
+// 全局方法：设置日志级别
+export function setLogLevel(level: string): void {
+  winstonLogger.level = level;
+}
+
+// 全局方法：等待 logger 初始化完成
+export async function ready(): Promise<void> {
+  return initializeTransports();
+}

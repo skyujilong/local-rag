@@ -6,7 +6,9 @@ import type { SearchQuery, SearchResult, HybridSearchResult } from '../../shared
 import { embeddingService } from './embeddings.js';
 import { vectorStore } from './vectorstore.js';
 import { documentService } from './documents.js';
-import { logger } from '../../shared/utils/logger.js';
+import { createLogger } from '../../shared/utils/logger.js';
+
+const log = createLogger('services:search');
 
 export class SearchService {
   /**
@@ -19,7 +21,7 @@ export class SearchService {
     // Search vector store
     const results = await vectorStore.search(query, queryEmbedding);
 
-    logger.debug(`Semantic search returned ${results.length} results for: ${query.query}`);
+    log.debug(`Semantic search returned ${results.length} results for: ${query.query}`);
 
     return results;
   }
@@ -98,7 +100,7 @@ export class SearchService {
     // Combine results using Reciprocal Rank Fusion (RRF)
     const combinedResults = this.reciprocalRankFusion(semanticResults, keywordResults, query);
 
-    logger.debug(
+    log.debug(
       `Hybrid search returned ${combinedResults.length} results for: ${query.query}`
     );
 

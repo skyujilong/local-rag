@@ -8,9 +8,11 @@ import { join } from 'path';
 import { unlink } from 'fs/promises';
 import DOMPurify from 'isomorphic-dompurify';
 import type { CrawlerConfig, CrawlerResult } from '../../shared/types/index.js';
-import { logger } from '../../shared/utils/logger.js';
+import { createLogger } from '../../shared/utils/logger.js';
 import { documentService } from './documents.js';
 import { CrawlerError } from '../../shared/types/index.js';
+
+const log = createLogger('services:crawler');
 
 export class CrawlerService {
   private browser: Browser | null = null;
@@ -34,19 +36,19 @@ export class CrawlerService {
       const version = await browser.version();
       this.browser = browser;
 
-      logger.info(`Crawler browser initialized (Chromium version: ${version})`);
+      log.info(`Crawler browser initialized (Chromium version: ${version})`);
     } catch (error) {
       // Clean up browser if initialization failed
       if (browser) {
         try {
           await browser.close();
-          logger.info('Cleaned up failed browser instance');
+          log.info('Cleaned up failed browser instance');
         } catch (closeError) {
-          logger.warn('Failed to cleanup browser after initialization failure:', closeError);
+          log.warn('Failed to cleanup browser after initialization failure:', closeError);
         }
       }
 
-      logger.error('Failed to initialize crawler browser', error);
+      log.error('Failed to initialize crawler browser', error);
       throw new CrawlerError('', 'Browser initialization failed');
     }
   }
@@ -63,7 +65,7 @@ export class CrawlerService {
     const page = await context.newPage();
 
     try {
-      logger.info(`Crawling URL: ${config.url}`);
+      log.info(`Crawling URL: ${config.url}`);
 
       // Navigate to URL
       const response = await page.goto(config.url, {
@@ -99,7 +101,7 @@ export class CrawlerService {
         // Auto-cleanup after 1 minute
         setTimeout(() => {
           unlink(screenshotPath!).catch(() => {
-            logger.warn(`Failed to cleanup screenshot: ${screenshotPath}`);
+            log.warn(`Failed to cleanup screenshot: ${screenshotPath}`);
           });
         }, 60000);
       }
@@ -120,11 +122,11 @@ export class CrawlerService {
         links,
       };
 
-      logger.info(`Successfully crawled: ${config.url} (${result.metadata.wordCount} words)`);
+      log.info(`Successfully crawled: ${config.url} (${result.metadata.wordCount} words)`);
 
       return result;
     } catch (error) {
-      logger.error(`Failed to crawl URL: ${config.url}`, error);
+      log.error(`Failed to crawl URL: ${config.url}`, error);
       throw new CrawlerError(
         config.url,
         error instanceof Error ? error.message : String(error)
@@ -145,7 +147,7 @@ export class CrawlerService {
         const result = await this.crawlUrl(config);
         results.push(result);
       } catch (error) {
-        logger.warn(`Failed to crawl ${config.url}, continuing...`);
+        log.warn(`Failed to crawl ${config.url}, continuing...`);
       }
     }
 
@@ -167,7 +169,7 @@ export class CrawlerService {
       }
     );
 
-    logger.info(`Imported crawled content from: ${config.url}`);
+    log.info(`Imported crawled content from: ${config.url}`);
   }
 
   /**
@@ -284,7 +286,7 @@ export class CrawlerService {
       await this.browser.close();
       this.browser = null;
       this.contexts.clear();
-      logger.info('Crawler browser closed');
+      log.info('Crawler browser closed');
     }
   }
 }

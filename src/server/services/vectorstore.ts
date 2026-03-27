@@ -9,9 +9,11 @@ import type {
 } from '../../shared/types/index.js';
 import { DocumentSource } from '../../shared/types/index.js';
 import { config } from '../../shared/utils/config.js';
-import { logger } from '../../shared/utils/logger.js';
+import { createLogger } from '../../shared/utils/logger.js';
 import { AppError } from '../../shared/types/index.js';
 import { setTimeout } from 'timers/promises';
+
+const log = createLogger('services:vectorstore');
 
 export class VectorStoreService {
   private client: ChromaClient | null = null;
@@ -40,20 +42,20 @@ export class VectorStoreService {
           name: chromaConfig.collectionName,
           embeddingFunction: undefined as any,
         });
-        logger.info(`Connected to existing collection: ${chromaConfig.collectionName}`);
+        log.info(`Connected to existing collection: ${chromaConfig.collectionName}`);
       } catch (error) {
         // Collection doesn't exist, create it
         this.collection = await this.client.createCollection({
           name: chromaConfig.collectionName,
           metadata: { description: 'Document embeddings for devrag-cli' },
         });
-        logger.info(`Created new collection: ${chromaConfig.collectionName}`);
+        log.info(`Created new collection: ${chromaConfig.collectionName}`);
       }
 
       this.initialized = true;
-      logger.info('Vector store initialized successfully');
+      log.info('Vector store initialized successfully');
     } catch (error) {
-      logger.error('Failed to initialize vector store', error);
+      log.error('Failed to initialize vector store', error);
       throw new AppError('Vector store initialization failed', 'VECTORSTORE_INIT_ERROR');
     }
   }
@@ -86,9 +88,9 @@ export class VectorStoreService {
         metadatas,
       });
 
-      logger.debug(`Added ${chunks.length} embeddings for document ${documentId}`);
+      log.debug(`Added ${chunks.length} embeddings for document ${documentId}`);
     } catch (error) {
-      logger.error(`Failed to add embeddings for document ${documentId}`, error);
+      log.error(`Failed to add embeddings for document ${documentId}`, error);
       throw new AppError('Failed to add embeddings', 'ADD_EMBEDDINGS_ERROR');
     }
   }
@@ -150,7 +152,7 @@ export class VectorStoreService {
 
       return searchResults;
     } catch (error) {
-      logger.error('Search failed', error);
+      log.error('Search failed', error);
       throw new AppError('Search operation failed', 'SEARCH_ERROR');
     }
   }
@@ -168,9 +170,9 @@ export class VectorStoreService {
         where: { documentId },
       });
 
-      logger.debug(`Deleted embeddings for document ${documentId}`);
+      log.debug(`Deleted embeddings for document ${documentId}`);
     } catch (error) {
-      logger.error(`Failed to delete embeddings for document ${documentId}`, error);
+      log.error(`Failed to delete embeddings for document ${documentId}`, error);
       throw new AppError('Failed to delete embeddings', 'DELETE_EMBEDDINGS_ERROR');
     }
   }
@@ -187,7 +189,7 @@ export class VectorStoreService {
       const result = await this.collection!.count();
       return result;
     } catch (error) {
-      logger.error('Failed to get document count', error);
+      log.error('Failed to get document count', error);
       return 0;
     }
   }
