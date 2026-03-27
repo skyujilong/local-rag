@@ -237,6 +237,9 @@ export interface AppConfig {
   chromadb: {
     path: string;
     collectionName: string;
+    queryTimeout: number;
+    initRetryMaxAttempts: number;
+    initRetryDelay: number;
   };
   processing: {
     chunkSize: number;

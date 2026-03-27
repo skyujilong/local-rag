@@ -2,21 +2,12 @@
  * Ollama embedding service
  */
 
-import type { Ollama as OllamaType } from 'ollama';
+import { Ollama } from 'ollama';
 import { config } from '../../shared/utils/config.js';
 import { createLogger } from '../../shared/utils/logger.js';
 import { OllamaConnectionError } from '../../shared/types/index.js';
 
 const log = createLogger('services:embeddings');
-
-// Dynamic import to avoid type issues
-let Ollama: typeof OllamaType;
-try {
-  Ollama = (await import('ollama')).default as any;
-} catch (error) {
-  log.error('Failed to import Ollama:', error);
-  throw new OllamaConnectionError('Ollama package not found');
-}
 
 export class EmbeddingService {
   private client: any = null;
@@ -39,7 +30,7 @@ export class EmbeddingService {
 
     try {
       const ollamaConfig = config.get('ollama');
-      this.client = new (Ollama as any)({ host: ollamaConfig.baseUrl });
+      this.client = new Ollama({ host: ollamaConfig.baseUrl });
 
       // Test connection and check model
       await this.checkConnection();
