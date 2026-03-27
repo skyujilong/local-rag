@@ -18,7 +18,10 @@ const DEFAULT_CONFIG: AppConfig = {
     timeout: parseInt(process.env.OLLAMA_TIMEOUT || '30000', 10),
   },
   chromadb: {
-    path: join(process.cwd(), '.devrag', 'chromadb'),
+    // ChromaDB server URL (requires running ChromaDB server)
+    // Start with: docker run -p 8000:8000 chromadb/chroma
+    // Or: pip install chromadb && chroma-server --port 8000
+    path: process.env.CHROMA_PATH || 'http://localhost:8000',
     collectionName: 'documents',
   },
   processing: {
