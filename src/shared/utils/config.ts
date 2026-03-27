@@ -64,6 +64,8 @@ const DEFAULT_CONFIG: AppConfig = {
     baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
     model: process.env.OLLAMA_MODEL || 'nomic-embed-text',
     timeout: parseInt(process.env.OLLAMA_TIMEOUT || '30000', 10),
+    initRetryMaxAttempts: parseInt(process.env.OLLAMA_INIT_RETRY_MAX_ATTEMPTS || '3', 10),
+    initRetryDelay: parseInt(process.env.OLLAMA_INIT_RETRY_DELAY || '2000', 10),
   },
   chromadb: {
     // ChromaDB server URL (requires running ChromaDB server)

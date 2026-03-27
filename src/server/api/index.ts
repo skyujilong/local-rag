@@ -69,6 +69,13 @@ app.get('/api/health', (c) => {
   });
 });
 
+// Detailed health check for Ollama
+app.get('/api/health/ollama', async (c) => {
+  const health = await embeddingService.healthCheck();
+  const status = health.healthy ? 200 : 503;
+  return c.json(health, status as any);
+});
+
 // System status
 app.get('/api/status', async (c) => {
   const memUsage = process.memoryUsage();

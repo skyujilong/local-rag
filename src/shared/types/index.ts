@@ -233,6 +233,8 @@ export interface AppConfig {
     baseUrl: string;
     model: string;
     timeout: number;
+    initRetryMaxAttempts: number;
+    initRetryDelay: number;
   };
   chromadb: {
     path: string;
