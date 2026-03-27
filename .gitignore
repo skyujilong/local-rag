@@ -48,3 +48,7 @@ coverage/
 # 临时文件
 .tmp/
 temp/
+
+# Lock files
+pnpm-lock.yaml
+**/pnpm-lock.yaml
