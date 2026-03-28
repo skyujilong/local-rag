@@ -15,6 +15,7 @@ import { embeddingService } from '../services/embeddings.js';
 import { vectorStore } from '../services/vectorstore.js';
 import { AppError, DocumentNotFoundError } from '../../shared/types/index.js';
 import { logsRouter } from './logs.js';
+import { routes as documentsRoutes } from '../features/documents/api/routes.js';
 
 const log = createLogger('server');
 const logRequest = createLogger('api:request');
@@ -109,7 +110,11 @@ app.get('/api/status', async (c) => {
   });
 });
 
-// Document routes
+// Documents feature routes (must be registered BEFORE the old :id wildcard routes
+// to prevent /api/documents/notes, /tags, /search from being captured by :id)
+app.route('/api/documents', documentsRoutes);
+
+// Document routes (legacy document management)
 app.get('/api/documents', (c) => {
   const documents = documentService.getAllDocuments();
   return c.json({
@@ -127,11 +132,16 @@ app.get('/api/documents', (c) => {
 });
 
 app.get('/api/documents/:id', (c) => {
-  const id = c.req.param('id');
-  const document = documentService.getDocument(id!);
+  const id = c.req.param('id')!;
+  // Skip reserved sub-paths handled by documents feature routes
+  if (['notes', 'tags', 'search'].includes(id)) {
+    return c.notFound();
+  }
+
+  const document = documentService.getDocument(id);
 
   if (!document) {
-    throw new DocumentNotFoundError(id!);
+    throw new DocumentNotFoundError(id);
   }
 
   return c.json({
@@ -143,13 +153,20 @@ app.get('/api/documents/:id', (c) => {
 });
 
 app.delete('/api/documents/:id', async (c) => {
-  const id = c.req.param('id');
-  await documentService.deleteDocument(id!);
+  const id = c.req.param('id')!;
+  if (['notes', 'tags', 'search'].includes(id)) {
+    return c.notFound();
+  }
+
+  await documentService.deleteDocument(id);
   return c.json({ success: true, message: 'Document deleted' });
 });
 
 app.get('/api/documents/:id/progress', (c) => {
-  const id = c.req.param('id');
+  const id = c.req.param('id')!;
+  if (['notes', 'tags', 'search'].includes(id)) {
+    return c.notFound();
+  }
   const progress = documentService.getVectorizationProgress(id!);
 
   if (!progress) {

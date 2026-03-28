@@ -1,6 +1,7 @@
 <template>
   <n-config-provider :theme="darkTheme" :theme-overrides="themeOverrides">
-    <n-message-provider>
+    <n-dialog-provider>
+      <n-message-provider>
     <n-layout has-sider style="height: 100vh">
       <n-layout-sider
         bordered
@@ -39,14 +40,15 @@
         </n-layout-content>
       </n-layout>
     </n-layout>
-    </n-message-provider>
+      </n-message-provider>
+    </n-dialog-provider>
   </n-config-provider>
 </template>
 
 <script setup lang="ts">
-import { ref, h, onMounted } from 'vue';
+import { ref, h, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { darkTheme, type MenuOption } from 'naive-ui';
+import { darkTheme, NDialogProvider, type MenuOption } from 'naive-ui';
 import {
   GridOutline as DashboardIcon,
   DocumentOutline as DocumentIcon,
@@ -70,9 +72,14 @@ const menuOptions: MenuOption[] = [
     icon: () => h(DashboardIcon),
   },
   {
-    label: 'Documents',
+    label: '本地笔记',
     key: 'documents',
     icon: () => h(DocumentIcon),
+    children: [
+      { label: '笔记列表', key: 'documents' },
+      { label: '标签管理', key: 'documents/tags/manage' },
+      { label: '语义搜索', key: 'documents/search' },
+    ],
   },
   {
     label: 'Search',
@@ -117,10 +124,16 @@ const fetchStatus = async () => {
   }
 };
 
+let statusTimer: ReturnType<typeof setInterval>;
+
 onMounted(() => {
   activeKey.value = route.path.slice(1) || 'dashboard';
   fetchStatus();
-  setInterval(fetchStatus, 5000);
+  statusTimer = setInterval(fetchStatus, 5000);
+});
+
+onBeforeUnmount(() => {
+  if (statusTimer) clearInterval(statusTimer);
 });
 </script>
 

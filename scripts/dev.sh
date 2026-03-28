@@ -275,7 +275,8 @@ start_services() {
   # 启动后端（使用 pnpm exec 直接运行，获取真实 PID）
   print_info "启动后端 API (端口 3001)..."
   local server_log="${TMPDIR:-/tmp}/local-rag-server.log"
-  pnpm exec tsx watch "$PROJECT_ROOT/src/server/cli.ts" > "$server_log" 2>&1 &
+  # 使用 tee 同时输出到终端和日志文件
+  pnpm exec tsx watch "$PROJECT_ROOT/src/server/cli.ts" > >(tee -a "$server_log") 2>&1 &
   SERVER_PID=$!
   echo "$SERVER_PID" > "$SERVER_PIDFILE"
   PIDS+=("$SERVER_PID")
@@ -283,7 +284,8 @@ start_services() {
   # 启动前端（使用 pnpm exec 直接运行，获取真实 PID）
   print_info "启动前端 Vite (端口 5173)..."
   local client_log="${TMPDIR:-/tmp}/local-rag-client.log"
-  (cd "$PROJECT_ROOT/src/client" && pnpm exec vite > "$client_log" 2>&1) &
+  # 使用 tee 同时输出到终端和日志文件
+  (cd "$PROJECT_ROOT/src/client" && pnpm exec vite > >(tee -a "$client_log") 2>&1) &
   CLIENT_PID=$!
   echo "$CLIENT_PID" > "$CLIENT_PIDFILE"
   PIDS+=("$CLIENT_PID")
@@ -338,6 +340,11 @@ show_summary() {
   fi
 
   echo ""
+  echo "日志文件:"
+  echo -e "   后端: $server_log"
+  echo -e "   前端: $client_log"
+  echo ""
+  echo "提示: 使用 npm run logs:follow 查看实时日志"
   echo "按 Ctrl+C 停止所有服务"
 }
 

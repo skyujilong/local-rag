@@ -111,8 +111,8 @@ export function linkErrorHandlerToConsoleProxy(consoleProxy: any): void {
  * Vue 错误处理器工厂
  * 返回可用于 app.config.errorHandler 的函数
  */
-export function createVueErrorHandler(): (error: unknown, instance: any, info: string) => void {
-  return (error: unknown, instance: any, info: string) => {
+export function createVueErrorHandler(): (error: unknown, _instance: any, info: string) => void {
+  return (error: unknown, _instance: any, info: string) => {
     const err = error instanceof Error ? error : new Error(String(error));
     const message = `Vue error: ${info}`;
     console.error(message, err);

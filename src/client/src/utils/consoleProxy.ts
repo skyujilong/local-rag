@@ -168,7 +168,7 @@ export class ConsoleProxy {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const result = await response.json();
+      await response.json();
       // 成功发送，重置重试计数
       this.retryCount = 0;
     } catch (error) {
@@ -234,7 +234,7 @@ export class ConsoleProxy {
     const self = this;
 
     // 统一的代理函数
-    function createProxy(method: string, level: LogEntry['level']) {
+    function createProxy(method: 'log' | 'info' | 'warn' | 'error' | 'debug', level: LogEntry['level']) {
       console[method] = function (...args: unknown[]) {
         // 调用原始 console 方法
         self.originalConsole[method](...args);
@@ -286,8 +286,9 @@ export class ConsoleProxy {
    */
   restore(): void {
     // 只恢复我们代理的方法
-    ['log', 'info', 'warn', 'error', 'debug'].forEach(method => {
-      console[method] = this.originalConsole[method];
+    const methods: Array<'log' | 'info' | 'warn' | 'error' | 'debug'> = ['log', 'info', 'warn', 'error', 'debug'];
+    methods.forEach(method => {
+      console[method] = this.originalConsole[method] as any;
     });
 
     if (this.flushTimer) {

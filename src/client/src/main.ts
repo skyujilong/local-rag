@@ -3,15 +3,22 @@ import { createRouter, createWebHistory } from 'vue-router';
 import naive from 'naive-ui';
 import App from './App.vue';
 import Dashboard from './views/Dashboard.vue';
-import Documents from './views/Documents.vue';
 import Search from './views/Search.vue';
+import NotesList from './features/documents/components/NotesList.vue';
+import NoteEditor from './features/documents/components/NoteEditor.vue';
+import TagsManager from './features/documents/components/TagsManager.vue';
+import DocumentsSearch from './features/documents/components/Search.vue';
 import { loggerPlugin } from './plugins/loggerPlugin.js';
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
   { path: '/dashboard', component: Dashboard },
-  { path: '/documents', component: Documents },
-  { path: '/search', component: Search },
+  { path: '/documents', component: NotesList },
+  { path: '/documents/new', component: NoteEditor },
+  { path: '/documents/tags/manage', component: TagsManager },
+  { path: '/documents/search', component: DocumentsSearch },
+  { path: '/documents/:id', component: NoteEditor },  // 动态路由放最后
+  { path: '/search', component: Search }, // 旧的搜索页面（保留兼容）
 ];
 
 const router = createRouter({

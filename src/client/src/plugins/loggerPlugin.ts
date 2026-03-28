@@ -4,7 +4,7 @@
  */
 
 import type { App, InjectionKey } from 'vue';
-import { setupConsoleProxy, teardownConsoleProxy, flushLogs, getLogStats, type ConsoleProxy } from '../utils/consoleProxy.js';
+import { setupConsoleProxy, teardownConsoleProxy, flushLogs, getLogStats } from '../utils/consoleProxy.js';
 import { setupErrorHandler, linkErrorHandlerToConsoleProxy, createVueErrorHandler } from '../utils/errorHandler.js';
 
 export const loggerPluginKey: InjectionKey<LoggerPluginApi> = Symbol('loggerPlugin');
@@ -20,7 +20,7 @@ export const loggerPlugin = {
     const consoleProxy = setupConsoleProxy();
 
     // 设置全局错误处理
-    const errorHandler = setupErrorHandler();
+    setupErrorHandler();
 
     // 链接错误处理器到控制台代理
     linkErrorHandlerToConsoleProxy(consoleProxy);

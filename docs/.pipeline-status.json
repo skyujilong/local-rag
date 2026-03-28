@@ -17,42 +17,67 @@
     {
       "phaseId": 2,
       "name": "并行设计",
-      "status": "pending",
+      "status": "done",
+      "startedAt": "2026-03-28T11:43:00Z",
+      "completedAt": "2026-03-28T11:46:00Z",
       "subtasks": [
-        {"role": "architect", "roleName": "架构师", "status": "pending", "output": "docs/architecture/feature-documents.md"},
-        {"role": "ui-designer", "roleName": "UI 设计师", "status": "pending", "output": "docs/ui-design/feature-documents.md"},
-        {"role": "tester", "roleName": "测试工程师", "status": "pending", "output": "docs/test-plans/feature-documents.md"}
+        {"role": "architect", "roleName": "架构师", "status": "done", "output": "docs/architecture/feature-documents.md"},
+        {"role": "ui-designer", "roleName": "UI 设计师", "status": "done", "output": "docs/ui-design/feature-documents.md"},
+        {"role": "tester", "roleName": "测试工程师", "status": "done", "output": "docs/test-plans/feature-documents.md"}
       ]
     },
     {
       "phaseId": 3,
       "name": "全栈开发",
-      "status": "pending",
-      "output": "src/"
+      "status": "done",
+      "startedAt": "2026-03-28T11:48:00Z",
+      "completedAt": "2026-03-28T12:00:00Z",
+      "output": "src/",
+      "progress": {
+        "files": "12 个文件",
+        "frontend": "4 个组件",
+        "backend": "5 个服务文件",
+        "types": "1 个共享类型文件",
+        "docs": "4 个文档文件",
+        "duration": "11 分钟",
+        "tokens": "28,861"
+      }
     },
     {
       "phaseId": 4,
       "name": "代码审查",
-      "status": "pending",
-      "output": "docs/reviews/feature-documents.md"
+      "status": "done",
+      "startedAt": "2026-03-28T04:17:00Z",
+      "completedAt": "2026-03-28T04:21:00Z",
+      "output": "docs/reviews/feature-documents.md",
+      "summary": "22 issues: 4 Blockers, 12 Warnings, 6 Infos"
     },
     {
       "phaseId": 5,
       "name": "审查修复",
-      "status": "pending",
-      "output": "docs/reviews/feature-documents-fix-log.md"
+      "status": "done",
+      "startedAt": "2026-03-28T04:21:00Z",
+      "completedAt": "2026-03-28T04:27:00Z",
+      "output": "docs/reviews/feature-documents-fix-log.md",
+      "summary": "Fixed 4 Blockers + 4 Warnings"
     },
     {
       "phaseId": 6,
       "name": "测试执行",
-      "status": "pending",
-      "output": "docs/test-plans/feature-documents-results-round-1.md"
+      "status": "done",
+      "startedAt": "2026-03-28T04:27:00Z",
+      "completedAt": "2026-03-28T04:33:00Z",
+      "output": "docs/test-plans/feature-documents-results-round-1.md",
+      "summary": "119 tests passed, 0 failed"
     },
     {
       "phaseId": 7,
       "name": "修复循环",
-      "status": "pending",
-      "rounds": []
+      "status": "done",
+      "rounds": [],
+      "summary": "跳过：Phase 6 全部通过"
     }
-  ]
+  ],
+  "completedAt": "2026-03-28T04:33:00Z",
+  "finalStatus": "done"
 }
