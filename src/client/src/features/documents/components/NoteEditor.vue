@@ -106,6 +106,9 @@ const route = useRoute();
 const dialog = useDialog();
 const message = useMessage();
 
+// 组件挂载状态（用于防止卸载后更新 ref）
+let isMounted = true;
+
 // 图标组件
 const ArrowBackIcon = ArrowBack;
 const MoreHorizIcon = EllipsisHorizontal;
@@ -176,16 +179,19 @@ const moreOptions = [
 ];
 
 // 自动保存定时器
-let autoSaveTimer: NodeJS.Timeout | null = null;
+let autoSaveTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
  * 初始化
  */
 onMounted(async () => {
-  const noteId = route.params.id as string;
+  // 安全地提取路由参数 ID（处理 string | string[] 类型）
+  const rawId = route.params.id;
+  const noteId = Array.isArray(rawId) ? rawId[0] : rawId;
 
-  if (noteId !== 'new') {
+  if (noteId && noteId !== 'new') {
     // 加载现有笔记
+    // 防御性检查：防止字符串 'new' 被当作笔记 ID 传入
     await loadNote(noteId);
   } else {
     // 新建笔记，从 LocalStorage 恢复草稿
@@ -203,6 +209,9 @@ onMounted(async () => {
  * 清理
  */
 onBeforeUnmount(() => {
+  // 标记组件已卸载，防止异步操作更新 ref
+  isMounted = false;
+
   if (autoSaveTimer) {
     clearInterval(autoSaveTimer);
   }
@@ -216,6 +225,13 @@ onBeforeUnmount(() => {
  * 加载笔记
  */
 const loadNote = async (id: string) => {
+  // 输入校验：确保 ID 是有效的非空字符串
+  if (!id || typeof id !== 'string' || id.trim() === '') {
+    message.error('无效的笔记 ID');
+    goBack();
+    return;
+  }
+
   try {
     const response = await fetch(`/api/documents/notes/${id}`);
     const data = await response.json();
@@ -420,6 +436,11 @@ const handleKeyDown = (e: KeyboardEvent) => {
  */
 const startAutoSave = () => {
   autoSaveTimer = setInterval(() => {
+    // 检查组件是否已卸载，防止更新已卸载的 ref
+    if (!isMounted) {
+      return;
+    }
+
     // 只在有标题和内容时自动保存，避免对空笔记弹出警告
     if (
       saveStatus.value === 'unsaved' &&
