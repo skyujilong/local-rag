@@ -17,9 +17,11 @@ NC='\033[0m' # No Color
 # 存储子进程 PID
 PIDS=()
 
-# PID 文件
+# PID 文件 & 日志文件（脚本级常量，避免重复定义）
 SERVER_PIDFILE="${TMPDIR:-/tmp}/local-rag-server.pid"
 CLIENT_PIDFILE="${TMPDIR:-/tmp}/local-rag-client.pid"
+SERVER_LOG="${TMPDIR:-/tmp}/local-rag-server.log"
+CLIENT_LOG="${TMPDIR:-/tmp}/local-rag-client.log"
 
 # 依赖状态
 OLLAMA_OK=false
@@ -30,6 +32,19 @@ CLEANUP_DONE=false
 
 # 加载共享库
 source "$SCRIPT_DIR/lib/ollama.sh"
+
+# 递归杀死进程树（跨平台兼容 macOS 和 Linux）
+kill_tree() {
+  local pid=$1
+  # 先递归杀死所有子进程
+  local children=$(pgrep -P "$pid" 2>/dev/null)
+  for child in $children; do
+    kill_tree "$child"
+  done
+  # 再杀死当前进程
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+}
 
 # 清理函数：杀死所有子进程
 cleanup() {
@@ -42,15 +57,16 @@ cleanup() {
   echo ""
   echo -e "${YELLOW}🛑 正在停止所有服务...${NC}"
 
+  # 先捕获退出码（必须在 set +e 之前）
+  local exit_code=$?
   # 临时禁用 set -e 以防止递归清理
   set +e
-  local exit_code=$?
 
   # 杀死所有记录的子进程
   for pid in "${PIDS[@]}"; do
     if kill -0 "$pid" 2>/dev/null; then
-      kill "$pid" 2>/dev/null
-      wait "$pid" 2>/dev/null || true
+      # 递归杀死子进程树
+      kill_tree "$pid"
     fi
   done
 
@@ -58,7 +74,7 @@ cleanup() {
   if [ -f "$SERVER_PIDFILE" ]; then
     local pid=$(cat "$SERVER_PIDFILE")
     if kill -0 "$pid" 2>/dev/null; then
-      kill "$pid" 2>/dev/null || true
+      kill_tree "$pid"
     fi
     rm -f "$SERVER_PIDFILE"
   fi
@@ -66,7 +82,7 @@ cleanup() {
   if [ -f "$CLIENT_PIDFILE" ]; then
     local pid=$(cat "$CLIENT_PIDFILE")
     if kill -0 "$pid" 2>/dev/null; then
-      kill "$pid" 2>/dev/null || true
+      kill_tree "$pid"
     fi
     rm -f "$CLIENT_PIDFILE"
   fi
@@ -272,20 +288,16 @@ start_services() {
   # 切换到项目根目录
   cd "$PROJECT_ROOT"
 
-  # 启动后端（使用 pnpm exec 直接运行，获取真实 PID）
+  # 启动后端（使用子 shell 后台运行，Ctrl+C 时通过 cleanup 函数终止）
   print_info "启动后端 API (端口 3001)..."
-  local server_log="${TMPDIR:-/tmp}/local-rag-server.log"
-  # 使用 tee 同时输出到终端和日志文件
-  pnpm exec tsx watch "$PROJECT_ROOT/src/server/cli.ts" > >(tee -a "$server_log") 2>&1 &
+  (pnpm exec tsx watch "$PROJECT_ROOT/src/server/cli.ts" >> "$SERVER_LOG" 2>&1) &
   SERVER_PID=$!
   echo "$SERVER_PID" > "$SERVER_PIDFILE"
   PIDS+=("$SERVER_PID")
 
-  # 启动前端（使用 pnpm exec 直接运行，获取真实 PID）
+  # 启动前端（使用子 shell 后台运行）
   print_info "启动前端 Vite (端口 5173)..."
-  local client_log="${TMPDIR:-/tmp}/local-rag-client.log"
-  # 使用 tee 同时输出到终端和日志文件
-  (cd "$PROJECT_ROOT/src/client" && pnpm exec vite > >(tee -a "$client_log") 2>&1) &
+  (cd "$PROJECT_ROOT/src/client" && pnpm exec vite >> "$CLIENT_LOG" 2>&1) &
   CLIENT_PID=$!
   echo "$CLIENT_PID" > "$CLIENT_PIDFILE"
   PIDS+=("$CLIENT_PID")
@@ -341,8 +353,8 @@ show_summary() {
 
   echo ""
   echo "日志文件:"
-  echo -e "   后端: $server_log"
-  echo -e "   前端: $client_log"
+  echo -e "   后端: $SERVER_LOG"
+  echo -e "   前端: $CLIENT_LOG"
   echo ""
   echo "提示: 使用 npm run logs:follow 查看实时日志"
   echo "按 Ctrl+C 停止所有服务"
