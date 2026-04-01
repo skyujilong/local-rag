@@ -16,6 +16,8 @@ import { vectorStore } from '../services/vectorstore.js';
 import { AppError, DocumentNotFoundError } from '../../shared/types/index.js';
 import { logsRouter } from './logs.js';
 import { routes as documentsRoutes } from '../features/documents/api/routes.js';
+import { crawlerEnhancedService } from '../services/crawler-enhanced.service.js';
+import { crawlRoutes } from './crawl.js';
 
 const log = createLogger('server');
 const logRequest = createLogger('api:request');
@@ -113,6 +115,9 @@ app.get('/api/status', async (c) => {
 // Documents feature routes (must be registered BEFORE the old :id wildcard routes
 // to prevent /api/documents/notes, /tags, /search from being captured by :id)
 app.route('/api/documents', documentsRoutes);
+
+// Crawler routes
+app.route('/api/crawl', crawlRoutes);
 
 // Document routes (legacy document management)
 app.get('/api/documents', (c) => {
@@ -431,6 +436,23 @@ export async function startServer() {
       log.info('Vector store 初始化完成');
     } catch (error) {
       log.warn('Vector store 初始化失败，部分功能将不可用', error);
+    }
+
+    log.info('后台初始化 crawler db service');
+    try {
+      const { crawlerDbService } = await import('../services/crawler-db.service.js');
+      await crawlerDbService.initialize();
+      log.info('Crawler db service 初始化完成');
+    } catch (error) {
+      log.warn('Crawler db service 初始化失败，爬虫功能将不可用', error);
+    }
+
+    log.info('后台初始化 crawler enhanced service');
+    try {
+      await crawlerEnhancedService.initialize();
+      log.info('Crawler enhanced service 初始化完成');
+    } catch (error) {
+      log.warn('Crawler enhanced service 初始化失败，爬虫功能将不可用', error);
     }
 
     log.info('所有服务初始化完成');

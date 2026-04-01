@@ -1,21 +1,23 @@
 {
   "version": 2,
   "feature": "web-crawler",
-  "status": "running",
+  "status": "done",
   "startedAt": "2026-03-31T17:18:00Z",
   "maxFixRounds": 5,
-  "currentFixRound": 0,
+  "currentFixRound": 1,
   "phases": [
     {"phaseId": 1, "name": "PM - 需求分析", "status": "done", "startedAt": "2026-03-31T17:18:00Z", "completedAt": "2026-03-31T17:20:00Z", "output": "docs/prd/feature-web-crawler.md"},
-    {"phaseId": 2, "name": "并行设计", "status": "running", "startedAt": "2026-03-31T17:20:00Z", "subtasks": [
-      {"role": "architect", "roleName": "架构师", "status": "running"},
-      {"role": "ui-designer", "roleName": "UI 设计师", "status": "running"},
-      {"role": "tester", "roleName": "测试工程师", "status": "running"}
+    {"phaseId": 2, "name": "并行设计", "status": "done", "startedAt": "2026-03-31T17:20:00Z", "completedAt": "2026-04-01T03:32:00Z", "subtasks": [
+      {"role": "architect", "roleName": "架构师", "status": "done", "completedAt": "2026-04-01T03:28:00Z", "output": "docs/architecture/feature-web-crawler.md"},
+      {"role": "ui-designer", "roleName": "UI 设计师", "status": "done", "completedAt": "2026-04-01T03:30:00Z", "output": "docs/ui-design/feature-web-crawler.md"},
+      {"role": "tester", "roleName": "测试工程师", "status": "done", "completedAt": "2026-04-01T03:32:00Z", "output": "docs/test-plans/feature-web-crawler.md"}
     ]},
-    {"phaseId": 3, "name": "全栈开发", "status": "pending"},
-    {"phaseId": 4, "name": "代码审查", "status": "pending"},
-    {"phaseId": 5, "name": "审查修复", "status": "pending"},
-    {"phaseId": 6, "name": "测试执行", "status": "pending"},
-    {"phaseId": 7, "name": "修复循环", "status": "pending", "rounds": []}
+    {"phaseId": 3, "name": "全栈开发", "status": "done", "startedAt": "2026-04-01T12:00:00Z", "completedAt": "2026-04-01T14:30:00Z", "output": "src/"},
+    {"phaseId": 4, "name": "代码审查", "status": "done", "startedAt": "2026-04-01T14:30:00Z", "completedAt": "2026-04-01T16:00:00Z", "output": "docs/reviews/feature-web-crawler.md"},
+    {"phaseId": 5, "name": "审查修复", "status": "done", "startedAt": "2026-04-01T16:00:00Z", "completedAt": "2026-04-01T18:00:00Z", "output": "docs/reviews/feature-web-crawler-fix-log.md"},
+    {"phaseId": 6, "name": "测试执行", "status": "done", "startedAt": "2026-04-01T18:00:00Z", "completedAt": "2026-04-01T20:00:00Z", "output": "docs/test-plans/feature-web-crawler-results-round-1.md"},
+    {"phaseId": 7, "name": "修复循环", "status": "done", "startedAt": "2026-04-01T20:00:00Z", "completedAt": "2026-04-01T22:00:00Z", "rounds": [
+      {"round": 1, "status": "done", "startedAt": "2026-04-01T20:00:00Z", "completedAt": "2026-04-01T21:00:00Z", "fixLog": "docs/reviews/feature-web-crawler-round1-fix.md", "testResults": "docs/test-plans/feature-web-crawler-results-round-2.md"}
+    ]}
   ]
 }

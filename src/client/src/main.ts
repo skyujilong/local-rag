@@ -8,6 +8,8 @@ import NotesList from './features/documents/components/NotesList.vue';
 import NoteEditor from './features/documents/components/NoteEditor.vue';
 import TagsManager from './features/documents/components/TagsManager.vue';
 import DocumentsSearch from './features/documents/components/Search.vue';
+import WebCrawler from './views/WebCrawler.vue';
+import CrawlerHistory from './views/CrawlerHistory.vue';
 import { loggerPlugin } from './plugins/loggerPlugin.js';
 
 const routes = [
@@ -18,6 +20,8 @@ const routes = [
   { path: '/documents/tags/manage', component: TagsManager },
   { path: '/documents/search', component: DocumentsSearch },
   { path: '/documents/:id', component: NoteEditor },  // 动态路由放最后
+  { path: '/crawler', component: WebCrawler },
+  { path: '/crawler/history', component: CrawlerHistory },
   { path: '/search', component: Search }, // 旧的搜索页面（保留兼容）
 ];
 

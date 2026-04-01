@@ -53,6 +53,7 @@ import {
   GridOutline as DashboardIcon,
   DocumentOutline as DocumentIcon,
   SearchOutline as SearchIcon,
+  GlobeOutline as CrawlerIcon,
 } from '@vicons/ionicons5';
 
 const router = useRouter();
@@ -80,6 +81,11 @@ const menuOptions: MenuOption[] = [
       { label: '标签管理', key: 'documents/tags/manage' },
       { label: '语义搜索', key: 'documents/search' },
     ],
+  },
+  {
+    label: 'Web Crawler',
+    key: 'crawler',
+    icon: () => h(CrawlerIcon),
   },
   {
     label: 'Search',

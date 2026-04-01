@@ -30,6 +30,12 @@
     <n-space>
       <n-button type="primary" @click="$router.push('/documents')">Manage Documents</n-button>
       <n-button type="info" @click="$router.push('/search')">Search Knowledge Base</n-button>
+      <n-button type="success" @click="$router.push('/crawler')">
+        <template #icon>
+          <n-icon><GlobeOutline /></n-icon>
+        </template>
+        Import from Web
+      </n-button>
     </n-space>
 
     <n-divider />
@@ -61,6 +67,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { NIcon } from 'naive-ui';
+import { GlobeOutline } from '@vicons/ionicons5';
 
 const stats = ref({
   documentCount: 0,

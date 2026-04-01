@@ -17,6 +17,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    setupFiles: [],
+    env: {
+      NODE_ENV: 'test',
+      VITEST: 'true',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
